@@ -110,7 +110,7 @@ function draw() {
 		fill(255);
 		textAlign(CENTER, CENTER);
 		textSize(16);
-		text("Loading...", width/2, height/2
+		text("Loading...", width/2, height/2);
 		offsetY = (height - displayHeight) / 2;
 		scale = displayWidth / video.width;
 	}
