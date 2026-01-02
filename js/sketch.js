@@ -541,7 +541,7 @@ function drawFilmNoise() {
 	image(noiseGfx, 0, 0, width, height);
 }
 
-
+}
 
 
 
