@@ -7,25 +7,17 @@ let btnPressedImg; // image for pressed button
 let ticlicSound; // sound for arrow buttons
 let lightMaskImg; // image for light mask
 
-let videoLoaded = false; // Track if video is loaded
-let videoFirstFrameImg; // Fallback image for first frame
-let userInteracted = false; // Track if user has interacted
-
 function preload() {
-       video = createVideo(['img/video.mp4']);
-       video.hide();
-       video.elt.onloadeddata = () => {
-	       videoLoaded = true;
-	       // Only capture first frame after user interaction
-       };
-       clickSound = loadSound('/sound/clic.wav');
-       jingleSound = loadSound('/sound/jingle.wav');
-       antijingleSound = loadSound('/sound/antijingle.wav');
-       clacSound = loadSound('/sound/clac.wav');
-       btnPressedImg = loadImage('img/btnpressed.png');
-       ticlicSound = loadSound('/sound/ticlic.wav');
-       lightMaskImg = loadImage('img/lightmask.png');
-       framerate = 24; // <-- set this to your video's frame rate
+	video = createVideo(['img/video.mp4']);
+	video.hide();
+	clickSound = loadSound('/sound/clic.wav');
+	jingleSound = loadSound('/sound/jingle.wav');
+	antijingleSound = loadSound('/sound/antijingle.wav');
+	clacSound = loadSound('/sound/clac.wav');
+	btnPressedImg = loadImage('img/btnpressed.png');
+	ticlicSound = loadSound('/sound/ticlic.wav');
+	lightMaskImg = loadImage('img/lightmask.png');
+	framerate = 24; // <-- set this to your video's frame rate
 }
 
 
@@ -43,7 +35,7 @@ const videoOriginalWidth = 1080; // replace with your actual video width
 const videoOriginalHeight = 1920; // replace with your actual video height
 
 // Set your actual video frame rate here
-const VIDEO_FRAMERATE = 30; // <-- set this to your video's frame rate
+const VIDEO_FRAMERATE = 24; // <-- set this to your video's frame rate
 
 // Button position in original image (before frame 95)
 const buttonOriginalX = 247;
@@ -73,47 +65,38 @@ let waitingForButtonClick = true; // Show first frame until button click
 
 function draw() {
 
+	noSmooth();
 
-	function draw() {
-	       noSmooth();
+	// Calculate aspect ratios
+	let videoAspect = video.width / video.height;
+	let canvasAspect = width / height;
 
-	       // Calculate aspect ratios
-	       let videoAspect = video.width / video.height;
-	       let canvasAspect = width / height;
+	let displayWidth, displayHeight, offsetX, offsetY, scale;
 
-	       let displayWidth, displayHeight, offsetX, offsetY, scale;
+	// Cover the entire canvas (crop on smaller sides)
+	if (videoAspect > canvasAspect) {
+		displayHeight = height;
+		displayWidth = height * videoAspect;
+		offsetX = (width - displayWidth) / 2;
+		offsetY = 0;
+		scale = displayHeight / video.height;
+	} else {
+		displayWidth = width;
+		displayHeight = width / videoAspect;
+		offsetX = 0;
+		offsetY = (height - displayHeight) / 2;
+		scale = displayWidth / video.width;
+	}
 
-	       // Cover the entire canvas (crop on smaller sides)
-	       if (videoAspect > canvasAspect) {
-		       displayHeight = height;
-		       displayWidth = height * videoAspect;
-		       offsetX = (width - displayWidth) / 2;
-		       offsetY = 0;
-		       scale = displayHeight / video.height;
-	       } else {
-		       displayWidth = width;
-		       displayHeight = width / videoAspect;
-		       offsetX = 0;
-		       offsetY = (height - displayHeight) / 2;
-		       scale = displayWidth / video.width;
-	       }
+	// Center and draw
+	image(video, offsetX, offsetY, displayWidth, displayHeight);
 
-	       // Draw video only after user interaction and video loaded
-	       if (userInteracted && videoLoaded) {
-		       image(video, offsetX, offsetY, displayWidth, displayHeight);
-	       } else {
-		       // Fallback: show a message or black background
-		       background(0);
-		       fill(255);
-		       textAlign(CENTER, CENTER);
-		       textSize(24);
-		       text('Cliquez ou touchez pour démarrer', width/2, height/2);
-	       }
+	if (waitingForButtonClick) {
+		// Only show first frame, don't run rest of draw logic
+		return;
+	}
 
-	       if (!userInteracted || waitingForButtonClick) {
-		       // Only show first frame, don't run rest of draw logic
-		       return;
-	       }
+	// Determine which button placement to use
 	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
 	let bx, by, bw, bh;
 	let buttonMoved = frame >= 30; // Button moves at frame 30
@@ -137,11 +120,11 @@ function draw() {
 	let buttonDisplayH = bh * (displayHeight / videoOriginalHeight);
 
 	// control button debug
-if (!buttonClicked || buttonMoved) {
-noFill();
-stroke(0, 255, 0);
-rect(buttonX, buttonY, buttonDisplayW, buttonDisplayH);
-}
+	// if (!buttonClicked || buttonMoved) {
+	// 	noFill();
+	// 	stroke(0, 255, 0);
+	// 	rect(buttonX, buttonY, buttonDisplayW, buttonDisplayH);
+	// }
 
 	// Set cursor to pointer if mouse is over the button and it's visible, else default
 	let arrowHovered = false;
@@ -365,23 +348,17 @@ function playClickSound() {
 }
 
 function mousePressed() {
-       if (!userInteracted) {
-	       userInteracted = true;
-	       // On first interaction, ensure video is at first frame and loaded
-	       video.time(0);
-	       video.stop();
-       }
-       if (waitingForButtonClick && isInsideButton(mouseX, mouseY)) {
-	       video.play();
-	       waitingForButtonClick = false;
-	       playClickSound();
-	       buttonPressed = true;
-	       return;
-       }
-       if (isInsideButton(mouseX, mouseY)) {
-	       playClickSound();
-	       buttonPressed = true;
-       }
+	if (waitingForButtonClick && isInsideButton(mouseX, mouseY)) {
+		video.play();
+		waitingForButtonClick = false;
+		playClickSound();
+		buttonPressed = true;
+		return;
+	}
+	if (isInsideButton(mouseX, mouseY)) {
+		playClickSound();
+		buttonPressed = true;
+	}
 	// Arrow buttons
 	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
 	let buttonMoved = frame >= 30;
@@ -446,26 +423,21 @@ function mouseReleased() {
 }
 
 function touchStarted() {
-       if (!userInteracted) {
-	       userInteracted = true;
-	       video.time(0);
-	       video.stop();
-       }
-       if (isInsideButton(touchX, touchY)) {
-	       playClickSound();
-	       buttonPressed = true;
-       }
-       // Arrow buttons
-       let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-       let buttonMoved = frame >= 30;
-       if (buttonMoved) {
-	       let arrowIdx = isInsideArrowButton(touchX, touchY);
-	       if (arrowIdx !== -1 && ticlicSound && ticlicSound.isLoaded()) {
-		       ticlicSound.setVolume(0.4);
-		       ticlicSound.rate(1.3); // higher pitch
-		       ticlicSound.play();
-	       }
-       }
+	if (isInsideButton(touchX, touchY)) {
+		playClickSound();
+		buttonPressed = true;
+	}
+	// Arrow buttons
+	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
+	let buttonMoved = frame >= 30;
+	if (buttonMoved) {
+		let arrowIdx = isInsideArrowButton(touchX, touchY);
+		if (arrowIdx !== -1 && ticlicSound && ticlicSound.isLoaded()) {
+			ticlicSound.setVolume(0.4);
+			ticlicSound.rate(1.3); // higher pitch
+			ticlicSound.play();
+		}
+	}
 }
 
 function touchEnded() {
@@ -541,7 +513,7 @@ function drawFilmNoise() {
 	image(noiseGfx, 0, 0, width, height);
 }
 
-}
+
 
 
 
