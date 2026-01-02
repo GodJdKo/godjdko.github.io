@@ -6,13 +6,14 @@ let clacSound; // clac sound
 let btnPressedImg; // image for pressed button
 let ticlicSound; // sound for arrow buttons
 let lightMaskImg; // image for light mask
+let videoLoaded = false; // Track if video is loaded
 
 function preload() {
        video = createVideo(['img/video.mp4']);
        video.hide();
        video.elt.onloadeddata = () => {
 	       videoLoaded = true;
-	       // Only capture first frame after user interaction
+	       video.time(0); // Ensure we are at the start
        };
        clickSound = loadSound('sound/clic.wav');
        jingleSound = loadSound('sound/jingle.wav');
@@ -30,7 +31,6 @@ function setup() {
 	noiseGfx = createGraphics(windowWidth, windowHeight);
 	noiseGfx.pixelDensity(1);
 	frameRate(24); // Force 24fps for the sketch
-	video.stop(); // Ensure video is stopped on load
 	video.time(0); // Show first frame
 }
 
@@ -93,7 +93,9 @@ function draw() {
 	}
 
 	// Center and draw
-	image(video, offsetX, offsetY, displayWidth, displayHeight);
+	if (videoLoaded) {
+		image(video, offsetX, offsetY, displayWidth, displayHeight);
+	}
 
 	if (waitingForButtonClick) {
 		// Only show first frame, don't run rest of draw logic
