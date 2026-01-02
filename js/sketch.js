@@ -14,10 +14,10 @@ let userInteracted = false; // Track if user has interacted
 function preload() {
        video = createVideo(['img/video.mp4']);
        video.hide();
-       video.on('loadeddata', () => {
+       video.elt.onloadeddata = () => {
 	       videoLoaded = true;
 	       // Only capture first frame after user interaction
-       });
+       };
        clickSound = loadSound('/sound/clic.wav');
        jingleSound = loadSound('/sound/jingle.wav');
        antijingleSound = loadSound('/sound/antijingle.wav');
