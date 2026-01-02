@@ -7,14 +7,23 @@ let btnPressedImg; // image for pressed button
 let ticlicSound; // sound for arrow buttons
 let lightMaskImg; // image for light mask
 let videoLoaded = false; // Track if video is loaded
+print ("video not loaded yet");
 
 function preload() {
        video = createVideo(['img/video.mp4']);
        video.hide();
-       video.elt.onloadeddata = () => {
+       // Use addEventListener for better reliability
+       video.elt.addEventListener('loadeddata', () => {
 	       videoLoaded = true;
-	       video.time(0); // Ensure we are at the start
-       };
+		   print ("video loaded");
+	       video.time(0);
+       });
+       // Fallback: check if metadata is already loaded
+       if (video.elt.readyState >= 2) {
+           videoLoaded = true;
+           video.time(0);
+       }
+       
        clickSound = loadSound('sound/clic.wav');
        jingleSound = loadSound('sound/jingle.wav');
        antijingleSound = loadSound('sound/antijingle.wav');
@@ -86,8 +95,22 @@ function draw() {
 		scale = displayHeight / video.height;
 	} else {
 		displayWidth = width;
-		displayHeight = width / videoAspect;
-		offsetX = 0;
+	background(0); // Ensure black background
+	
+	// Fallback check in case event didn't fire
+	if (!videoLoaded && video.width > 0 && video.elt.readyState >= 2) {
+		videoLoaded = true;
+		video.time(0);
+	}
+
+	if (videoLoaded) {
+		image(video, offsetX, offsetY, displayWidth, displayHeight);
+	} else {
+		// Show loading text if video isn't ready
+		fill(255);
+		textAlign(CENTER, CENTER);
+		textSize(16);
+		text("Loading...", width/2, height/2
 		offsetY = (height - displayHeight) / 2;
 		scale = displayWidth / video.width;
 	}
