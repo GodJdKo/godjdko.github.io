@@ -7,17 +7,30 @@ let btnPressedImg; // image for pressed button
 let ticlicSound; // sound for arrow buttons
 let lightMaskImg; // image for light mask
 
+let videoLoaded = false; // Track if video is loaded
+let videoFirstFrameImg; // Fallback image for first frame
+
 function preload() {
-	video = createVideo(['img/video.mp4']);
-	video.hide();
-	clickSound = loadSound('/sound/clic.wav');
-	jingleSound = loadSound('/sound/jingle.wav');
-	antijingleSound = loadSound('/sound/antijingle.wav');
-	clacSound = loadSound('/sound/clac.wav');
-	btnPressedImg = loadImage('img/btnpressed.png');
-	ticlicSound = loadSound('/sound/ticlic.wav');
-	lightMaskImg = loadImage('img/lightmask.png');
-	framerate = 24; // <-- set this to your video's frame rate
+       video = createVideo(['img/video.mp4']);
+       video.hide();
+       video.onloadeddata(() => {
+	       videoLoaded = true;
+	       // Capture the first frame as an image for fallback
+	       video.time(0);
+	       setTimeout(() => {
+		       let tempGfx = createGraphics(video.width, video.height);
+		       tempGfx.image(video, 0, 0, video.width, video.height);
+		       videoFirstFrameImg = tempGfx.get();
+	       }, 200); // Wait a bit for frame to render
+       });
+       clickSound = loadSound('/sound/clic.wav');
+       jingleSound = loadSound('/sound/jingle.wav');
+       antijingleSound = loadSound('/sound/antijingle.wav');
+       clacSound = loadSound('/sound/clac.wav');
+       btnPressedImg = loadImage('img/btnpressed.png');
+       ticlicSound = loadSound('/sound/ticlic.wav');
+       lightMaskImg = loadImage('img/lightmask.png');
+       framerate = 24; // <-- set this to your video's frame rate
 }
 
 
@@ -65,36 +78,44 @@ let waitingForButtonClick = true; // Show first frame until button click
 
 function draw() {
 
-	noSmooth();
 
-	// Calculate aspect ratios
-	let videoAspect = video.width / video.height;
-	let canvasAspect = width / height;
+       noSmooth();
 
-	let displayWidth, displayHeight, offsetX, offsetY, scale;
+       // Calculate aspect ratios
+       let videoAspect = video.width / video.height;
+       let canvasAspect = width / height;
 
-	// Cover the entire canvas (crop on smaller sides)
-	if (videoAspect > canvasAspect) {
-		displayHeight = height;
-		displayWidth = height * videoAspect;
-		offsetX = (width - displayWidth) / 2;
-		offsetY = 0;
-		scale = displayHeight / video.height;
-	} else {
-		displayWidth = width;
-		displayHeight = width / videoAspect;
-		offsetX = 0;
-		offsetY = (height - displayHeight) / 2;
-		scale = displayWidth / video.width;
-	}
+       let displayWidth, displayHeight, offsetX, offsetY, scale;
 
-	// Center and draw
-	image(video, offsetX, offsetY, displayWidth, displayHeight);
+       // Cover the entire canvas (crop on smaller sides)
+       if (videoAspect > canvasAspect) {
+	       displayHeight = height;
+	       displayWidth = height * videoAspect;
+	       offsetX = (width - displayWidth) / 2;
+	       offsetY = 0;
+	       scale = displayHeight / video.height;
+       } else {
+	       displayWidth = width;
+	       displayHeight = width / videoAspect;
+	       offsetX = 0;
+	       offsetY = (height - displayHeight) / 2;
+	       scale = displayWidth / video.width;
+       }
 
-	if (waitingForButtonClick) {
-		// Only show first frame, don't run rest of draw logic
-		return;
-	}
+       // Draw video or fallback image
+       if (videoLoaded) {
+	       image(video, offsetX, offsetY, displayWidth, displayHeight);
+       } else if (videoFirstFrameImg) {
+	       image(videoFirstFrameImg, offsetX, offsetY, displayWidth, displayHeight);
+       } else {
+	       // Optional: draw a loading spinner or background
+	       background(0);
+       }
+
+       if (waitingForButtonClick) {
+	       // Only show first frame, don't run rest of draw logic
+	       return;
+       }
 
 	// Determine which button placement to use
 	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
