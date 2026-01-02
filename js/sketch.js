@@ -120,11 +120,11 @@ function draw() {
 	let buttonDisplayH = bh * (displayHeight / videoOriginalHeight);
 
 	// control button debug
-	// if (!buttonClicked || buttonMoved) {
-	// 	noFill();
-	// 	stroke(0, 255, 0);
-	// 	rect(buttonX, buttonY, buttonDisplayW, buttonDisplayH);
-	// }
+if (!buttonClicked || buttonMoved) {
+noFill();
+stroke(0, 255, 0);
+rect(buttonX, buttonY, buttonDisplayW, buttonDisplayH);
+}
 
 	// Set cursor to pointer if mouse is over the button and it's visible, else default
 	let arrowHovered = false;
