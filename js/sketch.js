@@ -112,6 +112,12 @@ function draw() {
 		scale = displayHeight / video.height;
 	} else {
 		displayWidth = width;
+		displayHeight = width / videoAspect;
+		offsetX = 0;
+		offsetY = (height - displayHeight) / 2;
+		scale = displayWidth / video.width;
+	}
+
 	background(0); // Ensure black background
 	
 	// Fallback check in case event didn't fire
@@ -128,14 +134,7 @@ function draw() {
 		textAlign(CENTER, CENTER);
 		textSize(16);
 		text("Loading...", width/2, height/2);
-		offsetY = (height - displayHeight) / 2;
-		scale = displayWidth / video.width;
-	}
-
-	// Center and draw
-	if (videoLoaded) {
-		image(video, offsetX, offsetY, displayWidth, displayHeight);
-	}
+	
 
 	if (waitingForButtonClick) {
 		// Only show first frame, don't run rest of draw logic
