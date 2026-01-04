@@ -50,6 +50,18 @@ function preload() {
            
            // Use addEventListener for better reliability
            if (video.elt) {
+                // iOS compatibility: add required attributes
+                video.elt.setAttribute('playsinline', 'true');
+                video.elt.setAttribute('webkit-playsinline', 'true');
+                video.elt.setAttribute('preload', 'auto');
+                video.elt.muted = false;
+                
+                video.elt.addEventListener('loadedmetadata', () => {
+                    videoLoaded = true;
+                    console.log("video metadata loaded - readyState:", video.elt.readyState);
+                    video.time(0);
+                });
+                
                 video.elt.addEventListener('loadeddata', () => {
                     videoLoaded = true;
                     console.log("video loaded (event listener) - readyState:", video.elt.readyState);
@@ -69,10 +81,10 @@ function preload() {
                 });
 
                 // Fallback: check if metadata is already loaded
-                if (video.elt.readyState >= 2) {
+                if (video.elt.readyState >= 1) {
                     videoLoaded = true;
                     video.time(0);
-                    console.log("Video already loaded (readyState check)");
+                    console.log("Video already loaded (readyState check):", video.elt.readyState);
                 }
            }
        } else {
@@ -94,6 +106,17 @@ function preload() {
            console.log("Reverse video element created");
            
            if (reverseVideo.elt) {
+               reverseVideo.elt.setAttribute('playsinline', 'true');
+               reverseVideo.elt.setAttribute('webkit-playsinline', 'true');
+               reverseVideo.elt.setAttribute('preload', 'auto');
+               reverseVideo.elt.muted = false;
+               
+               reverseVideo.elt.addEventListener('loadedmetadata', () => {
+                   reverseVideoLoaded = true;
+                   console.log("Reverse video metadata loaded");
+                   reverseVideo.time(0);
+               });
+               
                reverseVideo.elt.addEventListener('loadeddata', () => {
                    reverseVideoLoaded = true;
                    console.log("Reverse video loaded (event listener)");
@@ -104,7 +127,7 @@ function preload() {
                    console.error("Reverse video load error:", e);
                });
                
-               if (reverseVideo.elt.readyState >= 2) {
+               if (reverseVideo.elt.readyState >= 1) {
                    reverseVideoLoaded = true;
                    reverseVideo.time(0);
                    console.log("Reverse video already loaded");
@@ -129,6 +152,17 @@ function preload() {
            console.log("Video2 element created");
            
            if (video2.elt) {
+               video2.elt.setAttribute('playsinline', 'true');
+               video2.elt.setAttribute('webkit-playsinline', 'true');
+               video2.elt.setAttribute('preload', 'auto');
+               video2.elt.muted = false;
+               
+               video2.elt.addEventListener('loadedmetadata', () => {
+                   video2Loaded = true;
+                   console.log("Video2 metadata loaded");
+                   video2.time(0);
+               });
+               
                video2.elt.addEventListener('loadeddata', () => {
                    video2Loaded = true;
                    console.log("Video2 loaded (event listener)");
@@ -139,7 +173,7 @@ function preload() {
                    console.error("Video2 load error:", e);
                });
                
-               if (video2.elt.readyState >= 2) {
+               if (video2.elt.readyState >= 1) {
                    video2Loaded = true;
                    video2.time(0);
                    console.log("Video2 already loaded");
@@ -164,6 +198,17 @@ function preload() {
            console.log("ReverseVideo2 element created");
            
            if (reverseVideo2.elt) {
+               reverseVideo2.elt.setAttribute('playsinline', 'true');
+               reverseVideo2.elt.setAttribute('webkit-playsinline', 'true');
+               reverseVideo2.elt.setAttribute('preload', 'auto');
+               reverseVideo2.elt.muted = false;
+               
+               reverseVideo2.elt.addEventListener('loadedmetadata', () => {
+                   reverseVideo2Loaded = true;
+                   console.log("ReverseVideo2 metadata loaded");
+                   reverseVideo2.time(0);
+               });
+               
                reverseVideo2.elt.addEventListener('loadeddata', () => {
                    reverseVideo2Loaded = true;
                    console.log("ReverseVideo2 loaded (event listener)");
@@ -174,7 +219,7 @@ function preload() {
                    console.error("ReverseVideo2 load error:", e);
                });
                
-               if (reverseVideo2.elt.readyState >= 2) {
+               if (reverseVideo2.elt.readyState >= 1) {
                    reverseVideo2Loaded = true;
                    reverseVideo2.time(0);
                    console.log("ReverseVideo2 already loaded");
