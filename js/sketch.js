@@ -30,7 +30,7 @@ let showingUI = false; // Track if we're in UI mode
 let firstFrameImages = [];
 let currentFirstFrame = 0;
 let lastFirstFrameChange = 0;
-let firstFrameInterval = 50; // ms between frames (customizable)
+let firstFrameInterval = 100; // ms between frames (customizable)
 
 function preload() {
        console.log("Preload starting, attempting to load video...");
@@ -200,7 +200,7 @@ function preload() {
        }
        
        // Preload first frame animation images
-       for (let i = 0; i < 4; i++) {
+       for (let i = 0; i < 5; i++) {
            firstFrameImages[i] = loadImage(`img/firstframe/firstframe${i}.jpg`);
        }
        
@@ -463,7 +463,7 @@ function draw() {
 		// Cycle through first frame animation
 		let now = millis();
 		if (now - lastFirstFrameChange >= firstFrameInterval) {
-			currentFirstFrame = (currentFirstFrame + 1) % 4;
+			currentFirstFrame = (currentFirstFrame + 1) % 5;
 			lastFirstFrameChange = now;
 		}
 		
@@ -891,9 +891,6 @@ function mousePressed() {
 	}
 	
 	if (waitingForButtonClick && isInsideButton(mouseX, mouseY)) {
-		reverseVideo.pause(); // Ensure reverse video is paused
-		video.play();
-		waitingForButtonClick = false;
 		playClickSound();
 		buttonPressed = true;
 		return;
@@ -924,6 +921,24 @@ function mouseReleased() {
 	if (buttonPressed && isInsideButton(mouseX, mouseY)) {
 		if (clacSound && clacSound.isLoaded()) {
 			clacSound.play();
+		}
+		
+		// Check if in waitingForButtonClick mode - start video
+		if (waitingForButtonClick) {
+			if (jingleSound && jingleSound.isLoaded()) {
+				jingleSound.stop();
+				jingleSound.setVolume(0.2);
+				jingleSound.play();
+			}
+			if (antijingleSound && antijingleSound.isLoaded()) {
+				antijingleSound.stop();
+			}
+			reverseVideo.pause(); // Ensure reverse video is paused
+			video.play();
+			isPlaying = true;
+			waitingForButtonClick = false;
+			buttonPressed = false;
+			return;
 		}
 		
 		// Check if in UI mode - exit and play reverse video
@@ -1035,9 +1050,6 @@ function touchStarted() {
 	}
 	
 	if (waitingForButtonClick && isInsideButton(lastTouchX, lastTouchY)) {
-		reverseVideo.pause(); // Ensure reverse video is paused
-		video.play();
-		waitingForButtonClick = false;
 		playClickSound();
 		buttonPressed = true;
 		return false; // Prevent default
@@ -1071,6 +1083,24 @@ function touchEnded() {
 	if (buttonPressed && isInsideButton(lastTouchX, lastTouchY)) {
 		if (clacSound && clacSound.isLoaded()) {
 			clacSound.play();
+		}
+		
+		// Check if in waitingForButtonClick mode - start video
+		if (waitingForButtonClick) {
+			if (jingleSound && jingleSound.isLoaded()) {
+				jingleSound.stop();
+				jingleSound.setVolume(0.2);
+				jingleSound.play();
+			}
+			if (antijingleSound && antijingleSound.isLoaded()) {
+				antijingleSound.stop();
+			}
+			reverseVideo.pause(); // Ensure reverse video is paused
+			video.play();
+			isPlaying = true;
+			waitingForButtonClick = false;
+			buttonPressed = false;
+			return false;
 		}
 		
 		// Check if in UI mode - exit and play reverse video
