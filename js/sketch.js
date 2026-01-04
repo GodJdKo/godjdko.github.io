@@ -1,384 +1,257 @@
-let clickSound; // sound object
-let clickSoundRate = 1; // for pitch variation
-let jingleSound; // jingle sound
-let antijingleSound; // anti-jingle sound
-let clacSound; // clac sound
-let btnPressedImg; // image for pressed button
-let ticlicSound; // sound for arrow buttons
-let lightMaskImg; // image for light mask
-let video; // Declare video globally
-let videoLoaded = false; // Track if video is loaded
-let reverseVideo; // Reverse video
-let reverseVideoLoaded = false; // Track if reverse video is loaded
-let playingReverseVideo = false; // Track if reverse video is playing
-let video2; // Second video
-let video2Loaded = false; // Track if video2 is loaded
-let playingVideo2 = false; // Track if video2 is playing
-let reverseVideo2; // Reverse video 2
-let reverseVideo2Loaded = false; // Track if reverse video2 is loaded
-let playingReverseVideo2 = false; // Track if reverse video2 is playing
-let backUI0Img; // Back button default image
-let backUIImg; // Back button hover image
+// Sound effects
+let clickSound, jingleSound, antijingleSound, clacSound, ticlicSound;
 
-// UI Navigation system
-const availableImages = ['p0', 'p1', 'p2', 'p3'];
-let uiImages = {}; // Store loaded images
-let currentUIState = 'p0'; // Track current image being displayed
-let showingUI = false; // Track if we're in UI mode
-
-// First frame animation cycle
+// Images
+let btnPressedImg, lightMaskImg, backUI0Img, backUIImg;
+let uiImages = {};
 let firstFrameImages = [];
+
+// Video elements and states
+let video, reverseVideo, video2, reverseVideo2;
+let videoLoaded = false;
+let reverseVideoLoaded = false;
+let video2Loaded = false;
+let reverseVideo2Loaded = false;
+let playingReverseVideo = false;
+let playingVideo2 = false;
+let playingReverseVideo2 = false;
+let isPlaying = false;
+
+// UI Navigation
+const availableImages = ['p0', 'p1', 'p2', 'p3'];
+let currentUIState = 'p0';
+let showingUI = false;
+
+// First frame animation
 let currentFirstFrame = 0;
 let lastFirstFrameChange = 0;
-let firstFrameInterval = 100; // ms between frames (customizable)
+let firstFrameInterval = 100;
+
+// Button states
+let buttonClicked = false;
+let buttonPressed = false;
+let waitingForButtonClick = true;
+let lastTouchX = 0;
+let lastTouchY = 0;
 
 function preload() {
-       console.log("Preload starting, attempting to load video...");
-       
-       video = createVideo(['img/video.mp4'], () => {
-           console.log("Video loaded callback fired");
-           videoLoaded = true;
-           if (video && video.elt) {
-               video.time(0);
-               console.log("Video duration:", video.duration(), "Video size:", video.width, "x", video.height);
-           }
-       });
-       
-       if (video) {
-           video.hide();
-           console.log("Video element created");
-           
-           // Use addEventListener for better reliability
-           if (video.elt) {
-                // iOS compatibility: add required attributes
-                video.elt.setAttribute('playsinline', 'true');
-                video.elt.setAttribute('webkit-playsinline', 'true');
-                video.elt.setAttribute('preload', 'auto');
-                video.elt.muted = false;
-                
-                video.elt.addEventListener('loadedmetadata', () => {
-                    videoLoaded = true;
-                    console.log("video metadata loaded - readyState:", video.elt.readyState);
-                    video.time(0);
-                });
-                
-                video.elt.addEventListener('loadeddata', () => {
-                    videoLoaded = true;
-                    console.log("video loaded (event listener) - readyState:", video.elt.readyState);
-                    video.time(0);
-                });
-                
-                video.elt.addEventListener('error', (e) => {
-                    console.error("Video load error:", e, "Error code:", video.elt.error ? video.elt.error.code : 'unknown');
-                });
-                
-                video.elt.addEventListener('loadstart', () => {
-                    console.log("Video load started");
-                });
-                
-                video.elt.addEventListener('progress', () => {
-                    console.log("Video loading progress...");
-                });
-
-                // Fallback: check if metadata is already loaded
-                if (video.elt.readyState >= 1) {
-                    videoLoaded = true;
-                    video.time(0);
-                    console.log("Video already loaded (readyState check):", video.elt.readyState);
-                }
-           }
-       } else {
-           console.error("Failed to create video element!");
-       }
-       
-       // Load reverse video
-       reverseVideo = createVideo(['img/reversevideo.mp4'], () => {
-           console.log("Reverse video loaded callback fired");
-           reverseVideoLoaded = true;
-           if (reverseVideo && reverseVideo.elt) {
-               reverseVideo.time(0);
-               console.log("Reverse video duration:", reverseVideo.duration());
-           }
-       });
-       
-       if (reverseVideo) {
-           reverseVideo.hide();
-           console.log("Reverse video element created");
-           
-           if (reverseVideo.elt) {
-               reverseVideo.elt.setAttribute('playsinline', 'true');
-               reverseVideo.elt.setAttribute('webkit-playsinline', 'true');
-               reverseVideo.elt.setAttribute('preload', 'auto');
-               reverseVideo.elt.muted = false;
-               
-               reverseVideo.elt.addEventListener('loadedmetadata', () => {
-                   reverseVideoLoaded = true;
-                   console.log("Reverse video metadata loaded");
-                   reverseVideo.time(0);
-               });
-               
-               reverseVideo.elt.addEventListener('loadeddata', () => {
-                   reverseVideoLoaded = true;
-                   console.log("Reverse video loaded (event listener)");
-                   reverseVideo.time(0);
-               });
-               
-               reverseVideo.elt.addEventListener('error', (e) => {
-                   console.error("Reverse video load error:", e);
-               });
-               
-               if (reverseVideo.elt.readyState >= 1) {
-                   reverseVideoLoaded = true;
-                   reverseVideo.time(0);
-                   console.log("Reverse video already loaded");
-               }
-           }
-       } else {
-           console.error("Failed to create reverse video element!");
-       }
-       
-       // Load video2
-       video2 = createVideo(['img/video2.mp4'], () => {
-           console.log("Video2 loaded callback fired");
-           video2Loaded = true;
-           if (video2 && video2.elt) {
-               video2.time(0);
-               console.log("Video2 duration:", video2.duration());
-           }
-       });
-       
-       if (video2) {
-           video2.hide();
-           console.log("Video2 element created");
-           
-           if (video2.elt) {
-               video2.elt.setAttribute('playsinline', 'true');
-               video2.elt.setAttribute('webkit-playsinline', 'true');
-               video2.elt.setAttribute('preload', 'auto');
-               video2.elt.muted = false;
-               
-               video2.elt.addEventListener('loadedmetadata', () => {
-                   video2Loaded = true;
-                   console.log("Video2 metadata loaded");
-                   video2.time(0);
-               });
-               
-               video2.elt.addEventListener('loadeddata', () => {
-                   video2Loaded = true;
-                   console.log("Video2 loaded (event listener)");
-                   video2.time(0);
-               });
-               
-               video2.elt.addEventListener('error', (e) => {
-                   console.error("Video2 load error:", e);
-               });
-               
-               if (video2.elt.readyState >= 1) {
-                   video2Loaded = true;
-                   video2.time(0);
-                   console.log("Video2 already loaded");
-               }
-           }
-       } else {
-           console.error("Failed to create video2 element!");
-       }
-       
-       // Load reverse video2
-       reverseVideo2 = createVideo(['img/reversevideo2.mp4'], () => {
-           console.log("ReverseVideo2 loaded callback fired");
-           reverseVideo2Loaded = true;
-           if (reverseVideo2 && reverseVideo2.elt) {
-               reverseVideo2.time(0);
-               console.log("ReverseVideo2 duration:", reverseVideo2.duration());
-           }
-       });
-       
-       if (reverseVideo2) {
-           reverseVideo2.hide();
-           console.log("ReverseVideo2 element created");
-           
-           if (reverseVideo2.elt) {
-               reverseVideo2.elt.setAttribute('playsinline', 'true');
-               reverseVideo2.elt.setAttribute('webkit-playsinline', 'true');
-               reverseVideo2.elt.setAttribute('preload', 'auto');
-               reverseVideo2.elt.muted = false;
-               
-               reverseVideo2.elt.addEventListener('loadedmetadata', () => {
-                   reverseVideo2Loaded = true;
-                   console.log("ReverseVideo2 metadata loaded");
-                   reverseVideo2.time(0);
-               });
-               
-               reverseVideo2.elt.addEventListener('loadeddata', () => {
-                   reverseVideo2Loaded = true;
-                   console.log("ReverseVideo2 loaded (event listener)");
-                   reverseVideo2.time(0);
-               });
-               
-               reverseVideo2.elt.addEventListener('error', (e) => {
-                   console.error("ReverseVideo2 load error:", e);
-               });
-               
-               if (reverseVideo2.elt.readyState >= 1) {
-                   reverseVideo2Loaded = true;
-                   reverseVideo2.time(0);
-                   console.log("ReverseVideo2 already loaded");
-               }
-           }
-       } else {
-           console.error("Failed to create reverseVideo2 element!");
-       }
-       
-       clickSound = loadSound('sound/clic.wav');
-       jingleSound = loadSound('sound/jingle.wav');
-       antijingleSound = loadSound('sound/antijingle.wav');
-       clacSound = loadSound('sound/clac.wav');
-       btnPressedImg = loadImage('img/btnpressed.jpg');
-       ticlicSound = loadSound('sound/ticlic.wav');
-       lightMaskImg = loadImage('img/lightmask.png');
-       backUI0Img = loadImage('img/UI/backUI0.png');
-       backUIImg = loadImage('img/UI/backUI.png');
-       
-       // Preload UI navigation images
-       for (let imgName of availableImages) {
-           uiImages[imgName] = loadImage(`img/UI/${imgName}.jpg`);
-       }
-       
-       // Preload first frame animation images
-       for (let i = 0; i < 5; i++) {
-           firstFrameImages[i] = loadImage(`img/firstframe/firstframe${i}.jpg`);
-       }
-       
-       framerate = 24; // <-- set this to your video's frame rate
+	console.log("Preload starting...");
+	
+	// Setup all videos
+	video = setupVideo('img/video.mp4', () => {
+		videoLoaded = true;
+		console.log("Main video loaded");
+	});
+	
+	reverseVideo = setupVideo('img/reversevideo.mp4', () => {
+		reverseVideoLoaded = true;
+		console.log("Reverse video loaded");
+	});
+	
+	video2 = setupVideo('img/video2.mp4', () => {
+		video2Loaded = true;
+		console.log("Video2 loaded");
+	});
+	
+	reverseVideo2 = setupVideo('img/reversevideo2.mp4', () => {
+		reverseVideo2Loaded = true;
+		console.log("ReverseVideo2 loaded");
+	});
+	
+	// Load sounds
+	clickSound = loadSound('sound/clic.wav');
+	jingleSound = loadSound('sound/jingle.wav');
+	antijingleSound = loadSound('sound/antijingle.wav');
+	clacSound = loadSound('sound/clac.wav');
+	ticlicSound = loadSound('sound/ticlic.wav');
+	
+	// Load images
+	btnPressedImg = loadImage('img/btnpressed.jpg');
+	lightMaskImg = loadImage('img/lightmask.png');
+	backUI0Img = loadImage('img/UI/backUI0.png');
+	backUIImg = loadImage('img/UI/backUI.png');
+	
+	// Load UI navigation images
+	for (let imgName of availableImages) {
+		uiImages[imgName] = loadImage(`img/UI/${imgName}.jpg`);
+	}
+	
+	// Load first frame animation images
+	for (let i = 0; i < 5; i++) {
+		firstFrameImages[i] = loadImage(`img/firstframe/firstframe${i}.jpg`);
+	}
 }
-
 
 function setup() {
 	createCanvas(windowWidth, windowHeight);
 	noiseGfx = createGraphics(windowWidth, windowHeight);
 	noiseGfx.pixelDensity(1);
-	frameRate(24); // Force 24fps for the sketch
-	if (video) {
-        video.time(0); // Show first frame
-    }
+	frameRate(VIDEO_FRAMERATE);
+	if (video) video.time(0);
 }
 
-// Set these to your original video/image size
-const videoOriginalWidth = 1080; // replace with your actual video width
-const videoOriginalHeight = 1920; // replace with your actual video height
 
-// Set your actual video frame rate here
-const VIDEO_FRAMERATE = 24; // <-- set this to your video's frame rate
+// Video and canvas constants
+const VIDEO_FRAMERATE = 24;
+const videoOriginalWidth = 1080;
+const videoOriginalHeight = 1920;
 
-// Button position in original image (before frame 95)
+// Button positions
 const buttonOriginalX = 370;
 const buttonOriginalY = 1269;
 const buttonW = 40;
 const buttonH = 70;
 
-// Button position in second image (from frame 95 onward)
-const buttonOriginalX2 = 290; // set your new X
-const buttonOriginalY2 = 1375; // set your new Y
-const buttonW2 = 60; // set your new width
-const buttonH2 = 100; // set your new height
+const buttonOriginalX2 = 290;
+const buttonOriginalY2 = 1375;
+const buttonW2 = 60;
+const buttonH2 = 100;
 
-// New square button definitions (original video coordinates)
 const squareButtons = [
-	{ x: 550,  y: 1355, size: 70 },
+	{ x: 550, y: 1355, size: 70 },
 	{ x: 615, y: 1355, size: 70 },
 	{ x: 680, y: 1355, size: 70 },
 	{ x: 745, y: 1355, size: 70 }
 ];
 
-let isPlaying = false;
-let buttonClicked = false; // Track if button was clicked before it moves
-let buttonPressed = false; // Track if button is being pressed
-let waitingForButtonClick = true; // Show first frame until button click
-let lastTouchX = 0;
-let lastTouchY = 0;
+// Helper function: Setup video with iOS compatibility
+function setupVideo(videoPath, onLoadCallback) {
+	let vid = createVideo([videoPath], onLoadCallback);
+	vid.hide();
+	
+	if (vid.elt) {
+		vid.elt.setAttribute('playsinline', 'true');
+		vid.elt.setAttribute('webkit-playsinline', 'true');
+		vid.elt.setAttribute('preload', 'auto');
+		vid.elt.muted = false;
+		
+		vid.elt.addEventListener('loadedmetadata', () => {
+			onLoadCallback();
+			vid.time(0);
+		});
+		
+		vid.elt.addEventListener('loadeddata', () => {
+			onLoadCallback();
+			vid.time(0);
+		});
+		
+		vid.elt.addEventListener('error', (e) => {
+			console.error(`Video load error for ${videoPath}:`, e);
+		});
+		
+		if (vid.elt.readyState >= 1) {
+			onLoadCallback();
+			vid.time(0);
+		}
+	}
+	
+	return vid;
+}
 
-function draw() {
-
-	noSmooth();
-
-	// Calculate aspect ratios
-	let videoAspect = video.width / video.height;
+// Helper function: Calculate display dimensions for video/image
+function getDisplayDimensions(sourceWidth, sourceHeight) {
+	let aspect = sourceWidth / sourceHeight;
 	let canvasAspect = width / height;
-
-	let displayWidth, displayHeight, offsetX, offsetY, scale;
-
-	// Cover the entire canvas (crop on smaller sides)
-	if (videoAspect > canvasAspect) {
+	let displayWidth, displayHeight, offsetX, offsetY;
+	
+	if (aspect > canvasAspect) {
 		displayHeight = height;
-		displayWidth = height * videoAspect;
+		displayWidth = height * aspect;
 		offsetX = (width - displayWidth) / 2;
 		offsetY = 0;
-		scale = displayHeight / video.height;
 	} else {
 		displayWidth = width;
-		displayHeight = width / videoAspect;
+		displayHeight = width / aspect;
 		offsetX = 0;
 		offsetY = (height - displayHeight) / 2;
-		scale = displayWidth / video.width;
 	}
-
-	background(0); // Ensure black background
 	
-	// Fallback check in case event didn't fire
+	return { displayWidth, displayHeight, offsetX, offsetY };
+}
+
+// Helper function: Get button bounds for current video frame
+function getButtonBounds() {
+	let dims = getDisplayDimensions(video.width, video.height);
+	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
+	let bx, by, bw, bh;
+	
+	if (frame < 30) {
+		bx = buttonOriginalX;
+		by = buttonOriginalY;
+		bw = buttonW;
+		bh = buttonH;
+	} else {
+		bx = buttonOriginalX2;
+		by = buttonOriginalY2;
+		bw = buttonW2;
+		bh = buttonH2;
+	}
+	
+	let buttonX = dims.offsetX + (bx / videoOriginalWidth) * dims.displayWidth;
+	let buttonY = dims.offsetY + (by / videoOriginalHeight) * dims.displayHeight;
+	let buttonDisplayW = bw * (dims.displayWidth / videoOriginalWidth);
+	let buttonDisplayH = bh * (dims.displayHeight / videoOriginalHeight);
+	
+	return { x: buttonX, y: buttonY, w: buttonDisplayW, h: buttonDisplayH, frame };
+}
+
+function draw() {
+	noSmooth();
+	background(0);
+	
+	let dims = getDisplayDimensions(video.width, video.height);
+	
+	// Fallback video load check
 	if (!videoLoaded && video.width > 0 && video.elt.readyState >= 2) {
 		videoLoaded = true;
 		video.time(0);
 	}
 	
-	// Check if playing reverse video
+	// Render reverse video
 	if (playingReverseVideo) {
 		if (reverseVideoLoaded && reverseVideo) {
-			image(reverseVideo, offsetX, offsetY, displayWidth, displayHeight);
+			image(reverseVideo, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 			
-			// Check if reverse video finished
 			if (reverseVideo.time() >= reverseVideo.duration()) {
 				reverseVideo.pause();
 				reverseVideo.time(0);
 				playingReverseVideo = false;
-				video.pause(); // Ensure main video is paused
-				video.time(0); // Reset main video to start
-				buttonClicked = false; // Reset button state
+				video.pause();
+				video.time(0);
+				buttonClicked = false;
 				waitingForButtonClick = true;
 			}
 		}
 		drawFilmNoise();
-		return; // Don't render anything else
+		return;
 	}
-
-	// Check if playing reversevideo2
+	
+	// Render reversevideo2
 	if (playingReverseVideo2) {
 		if (reverseVideo2Loaded && reverseVideo2) {
-			image(reverseVideo2, offsetX, offsetY, displayWidth, displayHeight);
+			image(reverseVideo2, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 			
-			// Check if reversevideo2 finished
 			if (reverseVideo2.time() >= reverseVideo2.duration()) {
 				reverseVideo2.pause();
 				reverseVideo2.time(0);
 				playingReverseVideo2 = false;
 				playingVideo2 = false;
-				// Return to p3 UI
 				currentUIState = 'p3';
 				showingUI = true;
 			}
 		}
 		drawFilmNoise();
-		return; // Don't render anything else
+		return;
 	}
-
-	// Check if playing video2
+	
+	// Render video2 with back button
 	if (playingVideo2) {
 		if (video2Loaded && video2) {
-			image(video2, offsetX, offsetY, displayWidth, displayHeight);
+			image(video2, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 			
-			// Check if video2 finished - freeze on last frame
 			if (video2.time() >= video2.duration()) {
 				video2.pause();
-				video2.time(video2.duration()); // Stay at last frame
+				video2.time(video2.duration());
 			}
 		}
 		drawFilmNoise();
@@ -387,405 +260,212 @@ function draw() {
 		if (video2.time() >= video2.duration() && backUI0Img && backUIImg) {
 			let smallestSide = min(width, height);
 			let btnSize = smallestSide / 6;
-			let btnX = width - btnSize - 20; // 20px padding from right
-			let btnY = height - btnSize - 20; // 20px padding from bottom
+			let btnX = width - btnSize - 20;
+			let btnY = height - btnSize - 20;
 			
-			// Check if mouse is over back button
 			let isHovered = mouseX >= btnX && mouseX <= btnX + btnSize &&
 			                mouseY >= btnY && mouseY <= btnY + btnSize;
 			
-			if (isHovered) {
-				document.body.style.cursor = 'pointer';
-				image(backUIImg, btnX, btnY, btnSize, btnSize);
-			} else {
-				image(backUI0Img, btnX, btnY, btnSize, btnSize);
-			}
+			document.body.style.cursor = isHovered ? 'pointer' : 'default';
+			image(isHovered ? backUIImg : backUI0Img, btnX, btnY, btnSize, btnSize);
 		}
 		
-		return; // Don't render anything else
+		return;
 	}
-
-	// Display UI image if in UI mode
+	
+	// Render UI mode
 	if (showingUI && uiImages[currentUIState]) {
 		let img = uiImages[currentUIState];
+		let uiDims = getDisplayDimensions(img.width, img.height);
 		
-		// Calculate aspect ratios for the UI image
-		let imgAspect = img.width / img.height;
-		let canvasAspect = width / height;
+		image(img, uiDims.offsetX, uiDims.offsetY, uiDims.displayWidth, uiDims.displayHeight);
 		
-		let displayWidth, displayHeight, offsetX, offsetY;
-		
-		// Cover the entire canvas
-		if (imgAspect > canvasAspect) {
-			displayHeight = height;
-			displayWidth = height * imgAspect;
-			offsetX = (width - displayWidth) / 2;
-			offsetY = 0;
-		} else {
-			displayWidth = width;
-			displayHeight = width / imgAspect;
-			offsetX = 0;
-			offsetY = (height - displayHeight) / 2;
+		// Render button press effects in UI mode
+		if (buttonPressed) {
+			renderButtonPressEffect(uiDims, true);
 		}
 		
-		image(img, offsetX, offsetY, displayWidth, displayHeight);
+		// Render arrow button press effects
+		renderArrowButtonEffects(uiDims);
 		
-		// Render lightmask on big button when pressed in UI mode
-		if (buttonPressed && lightMaskImg) {
-			let bx = buttonOriginalX2;
-			let by = buttonOriginalY2;
-			let bw = buttonW2;
-			let bh = buttonH2;
-			// Use the same scale factor calculation as the rest of the code
-			let scaleX = displayWidth / videoOriginalWidth;
-			let scaleY = displayHeight / videoOriginalHeight;
-			let buttonX = offsetX + (bx * scaleX);
-			let buttonY = offsetY + (by * scaleY);
-			let buttonDisplayW = bw * scaleX;
-			let buttonDisplayH = bh * scaleY;
-			// Scale the offset proportionally
-			let maskOffsetX = 12 * scaleX;
-			let maskOffsetY = 23 * scaleY;
-			let maskExtraW = 20 * scaleX;
-			let maskExtraH = 39 * scaleY;
-			image(lightMaskImg, buttonX - maskOffsetX, buttonY - maskOffsetY, buttonDisplayW + maskExtraW, buttonDisplayH + maskExtraH);
-		}
-		
-		// Render lightmask on arrow buttons when pressed in UI mode
-		if (lightMaskImg) {
-			let scaleFactor = displayWidth / videoOriginalWidth;
-			for (let i = 0; i < squareButtons.length; i++) {
-				let btn = squareButtons[i];
-				let btnX = offsetX + (btn.x / videoOriginalWidth) * displayWidth;
-				let btnY = offsetY + (btn.y / videoOriginalHeight) * displayHeight;
-				let btnSize = btn.size * scaleFactor;
-				
-				// Check if this arrow button is currently pressed
-				let pressed = false;
-				// Mouse
-				if (mouseIsPressed && mouseButton === LEFT &&
-					mouseX >= btnX && mouseX <= btnX + btnSize &&
-					mouseY >= btnY && mouseY <= btnY + btnSize) {
-					pressed = true;
-				}
-				// Touch
-				if (touches && touches.length > 0) {
-					for (let t of touches) {
-						if (t.x >= btnX && t.x <= btnX + btnSize &&
-							t.y >= btnY && t.y <= btnY + btnSize) {
-							pressed = true;
-							break;
-						}
-					}
-				}
-				
-				if (pressed) {
-					// Scale the inset proportionally
-					let maskInset = 10 * scaleFactor;
-					image(lightMaskImg, btnX + maskInset, btnY + maskInset, btnSize - (maskInset * 2), btnSize - (maskInset * 2));
-				}
-			}
-		}
-		
-		// Draw film noise on UI
 		drawFilmNoise();
-		
-		return; // Don't render video when showing UI
+		return;
 	}
-
-	if (videoLoaded) {
-		image(video, offsetX, offsetY, displayWidth, displayHeight);
-	} else {
-		// Show loading text if video isn't ready
+	
+	// Show loading if video not ready
+	if (!videoLoaded) {
 		fill(255);
 		textAlign(CENTER, CENTER);
 		textSize(16);
 		text("Loading...", width/2, height/2);
 		return;
 	}
-
+	
+	image(video, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
+	
+	// Render first frame animation
 	if (waitingForButtonClick) {
-		// Cycle through first frame animation
 		let now = millis();
 		if (now - lastFirstFrameChange >= firstFrameInterval) {
 			currentFirstFrame = (currentFirstFrame + 1) % 5;
 			lastFirstFrameChange = now;
 		}
 		
-		// Display current firstframe image
 		if (firstFrameImages[currentFirstFrame]) {
-			let img = firstFrameImages[currentFirstFrame];
-			image(img, offsetX, offsetY, displayWidth, displayHeight);
+			image(firstFrameImages[currentFirstFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 		}
 		
-		// Draw button hitbox even when waiting
-		let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-		let bx = buttonOriginalX;
-		let by = buttonOriginalY;
-		let bw = buttonW;
-		let bh = buttonH;
-		
-		let buttonX = offsetX + (bx / videoOriginalWidth) * displayWidth;
-		let buttonY = offsetY + (by / videoOriginalHeight) * displayHeight;
-		let buttonDisplayW = bw * (displayWidth / videoOriginalWidth);
-		let buttonDisplayH = bh * (displayHeight / videoOriginalHeight);
-		
-		// Draw noise texture BEFORE button elements
 		drawFilmNoise();
 		
-		// Render lightmask on big button when pressed at first frame
 		if (buttonPressed && btnPressedImg) {
-			image(btnPressedImg, offsetX, offsetY, displayWidth, displayHeight);
+			image(btnPressedImg, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 		}
 		
-		/////////////////////////////////// Debug visualization
-		noFill();
-		stroke(0, 255, 0);
-		strokeWeight(2);
-		//rect(buttonX, buttonY, buttonDisplayW, buttonDisplayH);
-		
-		// Check for button hover
-		if (mouseX >= buttonX && mouseX <= buttonX + buttonDisplayW &&
-		    mouseY >= buttonY && mouseY <= buttonY + buttonDisplayH) {
-			document.body.style.cursor = 'pointer';
-		} else {
-			document.body.style.cursor = 'default';
-		}
-		
-		return; // Don't run rest of draw logic
+		let bounds = getButtonBounds();
+		document.body.style.cursor = (mouseX >= bounds.x && mouseX <= bounds.x + bounds.w &&
+		                              mouseY >= bounds.y && mouseY <= bounds.y + bounds.h) ? 'pointer' : 'default';
+		return;
 	}
-
-	// Determine which button placement to use
-	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-	let bx, by, bw, bh;
-	let buttonMoved = frame >= 30; // Button moves at frame 30
-
-	if (frame < 30) {
-		bx = buttonOriginalX;
-		by = buttonOriginalY;
-		bw = buttonW;
-		bh = buttonH;
-	} else {
-		bx = buttonOriginalX2;
-		by = buttonOriginalY2;
-		bw = buttonW2;
-		bh = buttonH2;
+	
+	// Handle video playback - cache bounds calculation
+	let bounds = getButtonBounds();
+	let buttonMoved = bounds.frame >= 30;
+	
+	// Update cursor
+	updateCursor(bounds, buttonMoved, dims);
+	
+	drawFilmNoise();
+	
+	// Check if video ended
+	if (isPlaying && video.time() >= video.duration()) {
+		video.pause();
+		video.time(video.duration());
+		isPlaying = false;
+		reverseVideo.pause();
+		currentUIState = 'p0';
+		showingUI = true;
 	}
-
-	// Map button position from original to displayed video
-	let buttonX = offsetX + (bx / videoOriginalWidth) * displayWidth;
-	let buttonY = offsetY + (by / videoOriginalHeight) * displayHeight;
-	let buttonDisplayW = bw * (displayWidth / videoOriginalWidth);
-	let buttonDisplayH = bh * (displayHeight / videoOriginalHeight);
-
-
-	// Set cursor to pointer if mouse is over the button and it's visible, else default
-	let arrowHovered = false;
+	
+	// Reset buttonClicked when button moves
+	if (buttonMoved && buttonClicked) {
+		buttonClicked = false;
+	}
+	
+	// Render button press effects
+	if (buttonPressed) {
+		renderButtonPressEffect(dims, buttonMoved);
+	}
+	
+	// Render arrow button effects
 	if (buttonMoved) {
-		let scaleFactor = displayWidth / videoOriginalWidth;
+		renderArrowButtonEffects(dims);
+	}
+}
+
+// Helper: Update cursor based on button/arrow hover
+function updateCursor(bounds, buttonMoved, dims) {
+	let arrowHovered = false;
+	
+	if (buttonMoved) {
+		let scaleFactor = dims.displayWidth / videoOriginalWidth;
 		for (let btn of squareButtons) {
-			let btnX = offsetX + (btn.x / videoOriginalWidth) * displayWidth;
-			let btnY = offsetY + (btn.y / videoOriginalHeight) * displayHeight;
+			let btnX = dims.offsetX + (btn.x / videoOriginalWidth) * dims.displayWidth;
+			let btnY = dims.offsetY + (btn.y / videoOriginalHeight) * dims.displayHeight;
 			let btnSize = btn.size * scaleFactor;
-			if (
-				mouseX >= btnX &&
-				mouseX <= btnX + btnSize &&
-				mouseY >= btnY &&
-				mouseY <= btnY + btnSize
-			) {
+			if (mouseX >= btnX && mouseX <= btnX + btnSize &&
+			    mouseY >= btnY && mouseY <= btnY + btnSize) {
 				arrowHovered = true;
 				break;
 			}
 		}
 	}
-	if ((!buttonClicked || buttonMoved) && isInsideButton(mouseX, mouseY)) {
-		document.body.style.cursor = 'pointer';
-	} else if (arrowHovered) {
-		document.body.style.cursor = 'pointer';
-	} else {
-		document.body.style.cursor = 'default';
-	}
+	
+	let onButton = (!buttonClicked || buttonMoved) && isInsideButton(mouseX, mouseY);
+	document.body.style.cursor = (onButton || arrowHovered) ? 'pointer' : 'default';
+}
 
-	// --- Film noise effect ---
-	drawFilmNoise();
-
-	// Forward playback: pause at last frame and show UI
-	if (isPlaying && video.time() >= video.duration()) {
-		video.pause();
-		video.time(video.duration()); // Ensure it's at the last frame
-		isPlaying = false;
-		reverseVideo.pause(); // Ensure reverse video is paused
-		// Show main menu
-		currentUIState = 'p0';
-		showingUI = true;
-	}
-
-	// Reset buttonClicked when button moves
-	if (buttonMoved && buttonClicked) {
-		buttonClicked = false;
-	}
-
-	// Show btnPressedImg fullscreen, aligned with the video, if button is pressed in the first position (before it moves)
-	if (buttonPressed && frame < 30 && btnPressedImg) {
-		image(
-			btnPressedImg,
-			offsetX,
-			offsetY,
-			displayWidth,
-			displayHeight
-		);
-	}
-
-	// Render lightmask.png in front of the big button when pressed at its second position
-	if (buttonPressed && frame >= 30 && lightMaskImg) {
-		let bx = buttonOriginalX2;
-		let by = buttonOriginalY2;
-		let bw = buttonW2;
-		let bh = buttonH2;
-		// Use the same scale factor calculation as the rest of the code
-		let scaleX = displayWidth / videoOriginalWidth;
-		let scaleY = displayHeight / videoOriginalHeight;
-		let buttonX = offsetX + (bx * scaleX);
-		let buttonY = offsetY + (by * scaleY);
-		let buttonDisplayW = bw * scaleX;
-		let buttonDisplayH = bh * scaleY;
-		// Scale the offset proportionally
+// Helper: Render button press effects
+function renderButtonPressEffect(dims, buttonMoved) {
+	if (!lightMaskImg) return;
+	
+	if (buttonMoved) {
+		let scaleX = dims.displayWidth / videoOriginalWidth;
+		let scaleY = dims.displayHeight / videoOriginalHeight;
+		let buttonX = dims.offsetX + (buttonOriginalX2 * scaleX);
+		let buttonY = dims.offsetY + (buttonOriginalY2 * scaleY);
+		let buttonDisplayW = buttonW2 * scaleX;
+		let buttonDisplayH = buttonH2 * scaleY;
 		let maskOffsetX = 12 * scaleX;
 		let maskOffsetY = 23 * scaleY;
 		let maskExtraW = 20 * scaleX;
 		let maskExtraH = 39 * scaleY;
-		image(lightMaskImg, buttonX - maskOffsetX, buttonY - maskOffsetY, buttonDisplayW + maskExtraW, buttonDisplayH + maskExtraH);
+		image(lightMaskImg, buttonX - maskOffsetX, buttonY - maskOffsetY, 
+		      buttonDisplayW + maskExtraW, buttonDisplayH + maskExtraH);
+	} else if (btnPressedImg) {
+		image(btnPressedImg, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 	}
+}
 
-	// Render lightmask.png in front of each arrow button when pressed and at second position
-	if (frame >= 30 && lightMaskImg) {
-		let scaleFactor = displayWidth / videoOriginalWidth;
-		for (let i = 0; i < squareButtons.length; i++) {
-			let btn = squareButtons[i];
-			let btnX = offsetX + (btn.x / videoOriginalWidth) * displayWidth;
-			let btnY = offsetY + (btn.y / videoOriginalHeight) * displayHeight;
-			let btnSize = btn.size * scaleFactor;
-			// Check if this arrow button is currently pressed
-			let pressed = false;
-			// Mouse
-			if (mouseIsPressed && mouseButton === LEFT &&
-				mouseX >= btnX && mouseX <= btnX + btnSize &&
-				mouseY >= btnY && mouseY <= btnY + btnSize) {
-				pressed = true;
-			}
-			// Touch
-			if (touches && touches.length > 0) {
-				for (let t of touches) {
-					if (t.x >= btnX && t.x <= btnX + btnSize &&
-						t.y >= btnY && t.y <= btnY + btnSize) {
-						pressed = true;
-						break;
-					}
+// Helper: Render arrow button press effects
+function renderArrowButtonEffects(dims) {
+	if (!lightMaskImg) return;
+	
+	let scaleFactor = dims.displayWidth / videoOriginalWidth;
+	let maskInset = 10 * scaleFactor;
+	
+	for (let btn of squareButtons) {
+		let btnX = dims.offsetX + (btn.x / videoOriginalWidth) * dims.displayWidth;
+		let btnY = dims.offsetY + (btn.y / videoOriginalHeight) * dims.displayHeight;
+		let btnSize = btn.size * scaleFactor;
+		
+		let pressed = false;
+		if (mouseIsPressed && mouseButton === LEFT &&
+		    mouseX >= btnX && mouseX <= btnX + btnSize &&
+		    mouseY >= btnY && mouseY <= btnY + btnSize) {
+			pressed = true;
+		}
+		
+		if (!pressed && touches && touches.length > 0) {
+			for (let t of touches) {
+				if (t.x >= btnX && t.x <= btnX + btnSize &&
+				    t.y >= btnY && t.y <= btnY + btnSize) {
+					pressed = true;
+					break;
 				}
 			}
-			if (pressed) {
-				// Scale the inset proportionally
-				let maskInset = 10 * scaleFactor;
-				image(lightMaskImg, btnX + maskInset, btnY + maskInset, btnSize - (maskInset * 2), btnSize - (maskInset * 2));
-			}
 		}
-	}
-
-
-
-	// Draw green stroked squares for the 4 buttons when the main button has moved
-	if (buttonMoved) {
-		push();
-		noFill();
-		stroke(0, 255, 0);
-		strokeWeight(3);
-		// Use the same scale for both width and height to keep squares
-		let scaleFactor = displayWidth / videoOriginalWidth;
-		for (let btn of squareButtons) {
-			let btnX = offsetX + (btn.x / videoOriginalWidth) * displayWidth;
-			let btnY = offsetY + (btn.y / videoOriginalHeight) * displayHeight;
-			let btnSize = btn.size * scaleFactor;
-			//rect(btnX, btnY, btnSize, btnSize);
+		
+		if (pressed) {
+			image(lightMaskImg, btnX + maskInset, btnY + maskInset, 
+			      btnSize - (maskInset * 2), btnSize - (maskInset * 2));
 		}
-		pop();
 	}
 }
 
-// Helper to check if a point is inside the button
+// Helper: Check if point is inside button
 function isInsideButton(px, py) {
-	// Recalculate button position for current frame
-	let videoAspect = video.width / video.height;
-	let canvasAspect = width / height;
-	let displayWidth, displayHeight, offsetX, offsetY;
-	if (videoAspect > canvasAspect) {
-		displayHeight = height;
-		displayWidth = height * videoAspect;
-		offsetX = (width - displayWidth) / 2;
-		offsetY = 0;
-	} else {
-		displayWidth = width;
-		displayHeight = width / videoAspect;
-		offsetX = 0;
-		offsetY = (height - displayHeight) / 2;
-	}
-	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-	let bx, by, bw, bh;
-	if (frame < 30) {
-		bx = buttonOriginalX;
-		by = buttonOriginalY;
-		bw = buttonW;
-		bh = buttonH;
-	} else {
-		bx = buttonOriginalX2;
-		by = buttonOriginalY2;
-		bw = buttonW2;
-		bh = buttonH2;
-	}
-	let buttonX = offsetX + (bx / videoOriginalWidth) * displayWidth;
-	let buttonY = offsetY + (by / videoOriginalHeight) * displayHeight;
-	let buttonDisplayW = bw * (displayWidth / videoOriginalWidth);
-	let buttonDisplayH = bh * (displayHeight / videoOriginalHeight);
-
-	// Only return true if button is visible
-	let frameMoved = frame >= 30;
+	let bounds = getButtonBounds();
+	let frame = bounds.frame;
+	
 	if (frame < 30 && buttonClicked) return false;
-
-	return (
-		px >= buttonX &&
-		px <= buttonX + buttonDisplayW &&
-		py >= buttonY &&
-		py <= buttonY + buttonDisplayH
-	);
+	
+	return (px >= bounds.x && px <= bounds.x + bounds.w &&
+	        py >= bounds.y && py <= bounds.y + bounds.h);
 }
 
-// Helper to check if a point is inside any arrow button (returns index or -1)
+// Helper: Check if point is inside arrow button (returns index or -1)
 function isInsideArrowButton(px, py) {
-	let videoAspect = video.width / video.height;
-	let canvasAspect = width / height;
-	let displayWidth, displayHeight, offsetX, offsetY;
-	if (videoAspect > canvasAspect) {
-		displayHeight = height;
-		displayWidth = height * videoAspect;
-		offsetX = (width - displayWidth) / 2;
-		offsetY = 0;
-	} else {
-		displayWidth = width;
-		displayHeight = width / videoAspect;
-		offsetX = 0;
-		offsetY = (height - displayHeight) / 2;
-	}
-	let scaleFactor = displayWidth / videoOriginalWidth;
+	let dims = getDisplayDimensions(video.width, video.height);
+	let scaleFactor = dims.displayWidth / videoOriginalWidth;
+	
 	for (let i = 0; i < squareButtons.length; i++) {
 		let btn = squareButtons[i];
-		let btnX = offsetX + (btn.x / videoOriginalWidth) * displayWidth;
-		let btnY = offsetY + (btn.y / videoOriginalHeight) * displayHeight;
+		let btnX = dims.offsetX + (btn.x / videoOriginalWidth) * dims.displayWidth;
+		let btnY = dims.offsetY + (btn.y / videoOriginalHeight) * dims.displayHeight;
 		let btnSize = btn.size * scaleFactor;
-		if (
-			px >= btnX &&
-			px <= btnX + btnSize &&
-			py >= btnY &&
-			py <= btnY + btnSize
-		) {
+		
+		if (px >= btnX && px <= btnX + btnSize &&
+		    py >= btnY && py <= btnY + btnSize) {
 			return i;
 		}
 	}
@@ -794,53 +474,51 @@ function isInsideArrowButton(px, py) {
 
 function playClickSound() {
 	if (clickSound && clickSound.isLoaded()) {
-		// Random pitch variation between 0.95 and 1.05
-		clickSoundRate = random(0.95, 1.05);
-		clickSound.rate(clickSoundRate);
+		clickSound.rate(random(0.95, 1.05));
 		clickSound.play();
 	}
 }
 
-// Navigation functions
-function getDepth(state) {
-	return state.replace('p', '').length;
+// Helper: Play sound with volume control
+function playSound(sound, volume = 0.2, rate = 1) {
+	if (sound && sound.isLoaded()) {
+		sound.stop();
+		sound.setVolume(volume);
+		sound.rate(rate);
+		sound.play();
+	}
 }
 
+// Helper: Stop sound
+function stopSound(sound) {
+	if (sound && sound.isLoaded()) {
+		sound.stop();
+	}
+}
+
+// Navigation functions
 function navigateLeft() {
-	let depth = getDepth(currentUIState);
+	let depth = currentUIState.replace('p', '').length;
 	
-	if (depth === 1) {
-		// At top level
-		if (currentUIState === 'p1') {
-			// p1 -> p0
-			currentUIState = 'p0';
-		}
-		// p0, p2, p3 don't have left navigation at top level
-	} else {
-		// At deeper levels: navigate between siblings
+	if (depth === 1 && currentUIState === 'p1') {
+		currentUIState = 'p0';
+	} else if (depth > 1) {
 		let base = currentUIState.slice(0, -1);
 		let lastDigit = parseInt(currentUIState.slice(-1));
-		let newDigit = lastDigit - 1;
-		
-		if (newDigit >= 1) {
-			let newState = base + newDigit;
-			if (availableImages.includes(newState)) {
-				currentUIState = newState;
-			}
+		let newState = base + (lastDigit - 1);
+		if (lastDigit > 1 && availableImages.includes(newState)) {
+			currentUIState = newState;
 		}
 	}
 }
 
 function navigateRight() {
-	let depth = getDepth(currentUIState);
+	let depth = currentUIState.replace('p', '').length;
 	
 	if (depth === 1) {
-		// At top level
 		if (currentUIState === 'p0') {
-			// p0 -> p1
 			currentUIState = 'p1';
 		} else if (currentUIState === 'p3') {
-			// p3 -> play video2
 			showingUI = false;
 			if (video2Loaded && video2) {
 				video2.time(0);
@@ -848,14 +526,10 @@ function navigateRight() {
 				playingVideo2 = true;
 			}
 		}
-		// p1, p2 don't have right navigation at top level (only deeper levels do)
 	} else {
-		// At deeper levels: navigate between siblings
 		let base = currentUIState.slice(0, -1);
 		let lastDigit = parseInt(currentUIState.slice(-1));
-		let newDigit = lastDigit + 1;
-		let newState = base + newDigit;
-		
+		let newState = base + (lastDigit + 1);
 		if (availableImages.includes(newState)) {
 			currentUIState = newState;
 		}
@@ -863,49 +537,28 @@ function navigateRight() {
 }
 
 function navigateDown() {
-	let depth = getDepth(currentUIState);
+	let depth = currentUIState.replace('p', '').length;
 	
 	if (depth === 1) {
-		// At top level: handle p1->p2->p3 cycle
-		if (currentUIState === 'p0') {
-			// p0 doesn't cycle, only goes right to p1
-			return;
-		} else if (currentUIState === 'p1') {
-			currentUIState = 'p2';
-		} else if (currentUIState === 'p2') {
-			currentUIState = 'p3';
-		}
-		// p3 stays at p3 when pressing down
+		if (currentUIState === 'p1') currentUIState = 'p2';
+		else if (currentUIState === 'p2') currentUIState = 'p3';
 	} else if (depth < 3) {
-		// Go deeper: p1 -> p11, p11 -> p111
 		let newState = currentUIState + '1';
 		if (availableImages.includes(newState)) {
 			currentUIState = newState;
 			showingUI = true;
-			// Pause video to save resources
-			if (video && video.elt) {
-				video.pause();
-			}
+			if (video && video.elt) video.pause();
 		}
 	}
 }
 
 function navigateUp() {
-	let depth = getDepth(currentUIState);
+	let depth = currentUIState.replace('p', '').length;
 	
 	if (depth === 1) {
-		// At top level: handle p3->p2->p1 cycle
-		if (currentUIState === 'p0') {
-			// p0 doesn't cycle, only goes right to p1
-			return;
-		} else if (currentUIState === 'p3') {
-			currentUIState = 'p2';
-		} else if (currentUIState === 'p2') {
-			currentUIState = 'p1';
-		}
-		// p1 stays at p1 when pressing up
+		if (currentUIState === 'p3') currentUIState = 'p2';
+		else if (currentUIState === 'p2') currentUIState = 'p1';
 	} else if (depth > 1) {
-		// Go back up: p111 -> p11, p11 -> p1
 		let newState = currentUIState.slice(0, -1);
 		if (availableImages.includes(newState)) {
 			currentUIState = newState;
@@ -913,318 +566,148 @@ function navigateUp() {
 	}
 }
 
-function mousePressed() {
-	// Check if back button is clicked when video2 is frozen
-	if (playingVideo2 && video2.time() >= video2.duration()) {
-		let smallestSide = min(width, height);
-		let btnSize = smallestSide / 6;
-		let btnX = width - btnSize - 20;
-		let btnY = height - btnSize - 20;
-		
-		if (mouseX >= btnX && mouseX <= btnX + btnSize &&
-		    mouseY >= btnY && mouseY <= btnY + btnSize) {
-			if (ticlicSound && ticlicSound.isLoaded()) {
-				ticlicSound.play();
-			}
-			if (reverseVideo2Loaded && reverseVideo2) {
-				reverseVideo2.time(0);
-				reverseVideo2.play();
-				playingReverseVideo2 = true;
-			}
-			return;
+// Helper: Handle back button click
+function handleBackButtonClick(x, y) {
+	if (!playingVideo2 || video2.time() < video2.duration()) return false;
+	
+	let smallestSide = min(width, height);
+	let btnSize = smallestSide / 6;
+	let btnX = width - btnSize - 20;
+	let btnY = height - btnSize - 20;
+	
+	if (x >= btnX && x <= btnX + btnSize && y >= btnY && y <= btnY + btnSize) {
+		playSound(ticlicSound, 0.4);
+		if (reverseVideo2Loaded && reverseVideo2) {
+			reverseVideo2.time(0);
+			reverseVideo2.play();
+			playingReverseVideo2 = true;
+		}
+		return true;
+	}
+	return false;
+}
+
+// Helper: Handle button press start
+function handleButtonPressStart(x, y) {
+	if (handleBackButtonClick(x, y)) return;
+	
+	if (isInsideButton(x, y)) {
+		playClickSound();
+		buttonPressed = true;
+	}
+	
+	let bounds = getButtonBounds();
+	if (bounds.frame >= 30) {
+		let arrowIdx = isInsideArrowButton(x, y);
+		if (arrowIdx !== -1) {
+			playSound(ticlicSound, 0.4, 1.3);
+		}
+	}
+}
+
+// Helper: Handle button release
+function handleButtonRelease(x, y) {
+	if (!buttonPressed || !isInsideButton(x, y)) {
+		buttonPressed = false;
+		return;
+	}
+	
+	playSound(clacSound);
+	
+	// Starting from first frame state
+	if (waitingForButtonClick) {
+		playSound(jingleSound);
+		stopSound(antijingleSound);
+		reverseVideo.pause();
+		video.play();
+		isPlaying = true;
+		waitingForButtonClick = false;
+		buttonPressed = false;
+		return;
+	}
+	
+	// Exiting UI mode
+	if (showingUI) {
+		showingUI = false;
+		playSound(antijingleSound);
+		stopSound(jingleSound);
+		video.pause();
+		isPlaying = false;
+		if (reverseVideoLoaded && reverseVideo) {
+			reverseVideo.time(0);
+			reverseVideo.play();
+			playingReverseVideo = true;
+		}
+		buttonPressed = false;
+		return;
+	}
+	
+	// During video playback
+	let bounds = getButtonBounds();
+	if (bounds.frame < 30 && !buttonClicked) {
+		if (!isPlaying && !playingReverseVideo) {
+			playSound(jingleSound);
+			stopSound(antijingleSound);
+			reverseVideo.pause();
+			video.stop();
+			video.play();
+			isPlaying = true;
+			buttonClicked = true;
+		}
+	} else {
+		playSound(antijingleSound);
+		stopSound(jingleSound);
+		video.pause();
+		isPlaying = false;
+		if (reverseVideoLoaded && reverseVideo) {
+			reverseVideo.time(0);
+			reverseVideo.play();
+			playingReverseVideo = true;
 		}
 	}
 	
-	if (waitingForButtonClick && isInsideButton(mouseX, mouseY)) {
-		playClickSound();
-		buttonPressed = true;
-		return;
-	}
-	// Check if in UI mode and button pressed
-	if (showingUI && isInsideButton(mouseX, mouseY)) {
-		playClickSound();
-		buttonPressed = true;
-		return;
-	}
-	if (isInsideButton(mouseX, mouseY)) {
-		playClickSound();
-		buttonPressed = true;
-	}
-	// Arrow buttons
-	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-	let buttonMoved = frame >= 30;
-	if (buttonMoved) {
-		let arrowIdx = isInsideArrowButton(mouseX, mouseY);
-		if (arrowIdx !== -1 && ticlicSound && ticlicSound.isLoaded()) {
-			ticlicSound.rate(1.3); // higher pitch
-			ticlicSound.play();
+	buttonPressed = false;
+}
+
+// Helper: Handle arrow button navigation
+function handleArrowNavigation(x, y) {
+	let bounds = getButtonBounds();
+	if (bounds.frame < 30) return;
+	
+	let arrowIdx = isInsideArrowButton(x, y);
+	if (arrowIdx !== -1) {
+		// Always play release sound
+		playSound(ticlicSound, 0.4, 0.8);
+		
+		// Only navigate if we're in UI mode (video has ended)
+		if (showingUI) {
+			const navFunctions = [navigateDown, navigateLeft, navigateUp, navigateRight];
+			navFunctions[arrowIdx]();
 		}
 	}
+}
+
+function mousePressed() {
+	handleButtonPressStart(mouseX, mouseY);
 }
 
 function mouseReleased() {
-	if (buttonPressed && isInsideButton(mouseX, mouseY)) {
-		if (clacSound && clacSound.isLoaded()) {
-			clacSound.play();
-		}
-		
-		// Check if in waitingForButtonClick mode - start video
-		if (waitingForButtonClick) {
-			if (jingleSound && jingleSound.isLoaded()) {
-				jingleSound.stop();
-				jingleSound.setVolume(0.2);
-				jingleSound.play();
-			}
-			if (antijingleSound && antijingleSound.isLoaded()) {
-				antijingleSound.stop();
-			}
-			reverseVideo.pause(); // Ensure reverse video is paused
-			video.play();
-			isPlaying = true;
-			waitingForButtonClick = false;
-			buttonPressed = false;
-			return;
-		}
-		
-		// Check if in UI mode - exit and play reverse video
-		if (showingUI) {
-			showingUI = false;
-			if (antijingleSound && antijingleSound.isLoaded()) {
-				antijingleSound.stop();
-				antijingleSound.setVolume(0.2);
-				antijingleSound.play();
-			}
-			if (jingleSound && jingleSound.isLoaded()) {
-				jingleSound.stop();
-			}
-			video.pause(); // Ensure main video is paused
-			isPlaying = false;
-			if (reverseVideoLoaded && reverseVideo) {
-				reverseVideo.time(0);
-				reverseVideo.play();
-				playingReverseVideo = true;
-			}
-			buttonPressed = false;
-			return;
-		}
-		
-		let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-		let buttonMoved = frame >= 30;
-		   if (frame < 30 && !buttonClicked) {
-			   if (!isPlaying && !playingReverseVideo) {
-				   if (jingleSound && jingleSound.isLoaded()) {
-					   jingleSound.stop(); // Stop any currently playing jingle
-					   jingleSound.setVolume(0.2);
-					   jingleSound.play();
-				   }
-				   if (antijingleSound && antijingleSound.isLoaded()) {
-					   antijingleSound.stop(); // Stop antijingle if playing
-			   }
-			   reverseVideo.pause(); // Ensure reverse video is paused
-			   video.stop();
-				   video.play();
-				   isPlaying = true;
-				   buttonClicked = true;
-			   }
-		   } else {
-			   if (antijingleSound && antijingleSound.isLoaded()) {
-				   antijingleSound.stop(); // Stop any currently playing antijingle
-				   antijingleSound.setVolume(0.2);
-				   antijingleSound.play();
-			   }
-			   if (jingleSound && jingleSound.isLoaded()) {
-				   jingleSound.stop(); // Stop jingle if playing
-			   }
-			   video.pause(); // Stop main video
-			   isPlaying = false;
-			   if (reverseVideoLoaded && reverseVideo) {
-				   reverseVideo.time(0);
-				   reverseVideo.play();
-				   playingReverseVideo = true;
-			   }
-		   }
-	}
-	// Arrow buttons
-	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-	let buttonMoved = frame >= 30;
-	if (buttonMoved) {
-		let arrowIdx = isInsideArrowButton(mouseX, mouseY);
-		if (arrowIdx !== -1) {
-			// Handle navigation based on arrow button (order: down, left, up, right)
-			if (arrowIdx === 0) navigateDown();
-			else if (arrowIdx === 1) navigateLeft();
-			else if (arrowIdx === 2) navigateUp();
-			else if (arrowIdx === 3) navigateRight();
-			
-			if (ticlicSound && ticlicSound.isLoaded()) {
-				ticlicSound.setVolume(0.4);
-				ticlicSound.rate(0.8); // lower pitch
-				ticlicSound.play();
-			}
-		}
-	}
-	buttonPressed = false;
+	handleButtonRelease(mouseX, mouseY);
+	handleArrowNavigation(mouseX, mouseY);
 }
 
 function touchStarted() {
-	// Check if touches exist and store coordinates
 	if (!touches || touches.length === 0) return false;
-	
 	lastTouchX = touches[0].x;
 	lastTouchY = touches[0].y;
-	
-	// Check if back button is clicked when video2 is frozen
-	if (playingVideo2 && video2.time() >= video2.duration()) {
-		let smallestSide = min(width, height);
-		let btnSize = smallestSide / 6;
-		let btnX = width - btnSize - 20;
-		let btnY = height - btnSize - 20;
-		
-		if (lastTouchX >= btnX && lastTouchX <= btnX + btnSize &&
-		    lastTouchY >= btnY && lastTouchY <= btnY + btnSize) {
-			if (ticlicSound && ticlicSound.isLoaded()) {
-				ticlicSound.play();
-			}
-			if (reverseVideo2Loaded && reverseVideo2) {
-				reverseVideo2.time(0);
-				reverseVideo2.play();
-				playingReverseVideo2 = true;
-			}
-			return false;
-		}
-	}
-	
-	if (waitingForButtonClick && isInsideButton(lastTouchX, lastTouchY)) {
-		playClickSound();
-		buttonPressed = true;
-		return false; // Prevent default
-	}
-	// Check if in UI mode and button pressed
-	if (showingUI && isInsideButton(lastTouchX, lastTouchY)) {
-		playClickSound();
-		buttonPressed = true;
-		return false;
-	}
-	if (isInsideButton(lastTouchX, lastTouchY)) {
-		playClickSound();
-		buttonPressed = true;
-	}
-	// Arrow buttons
-	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-	let buttonMoved = frame >= 30;
-	if (buttonMoved) {
-		let arrowIdx = isInsideArrowButton(lastTouchX, lastTouchY);
-		if (arrowIdx !== -1 && ticlicSound && ticlicSound.isLoaded()) {
-			ticlicSound.setVolume(0.4);
-			ticlicSound.rate(1.3); // higher pitch
-			ticlicSound.play();
-		}
-	}
-	return false; // Prevent default
+	handleButtonPressStart(lastTouchX, lastTouchY);
+	return false;
 }
 
 function touchEnded() {
-	// Use stored touch coordinates from touchStarted
-	if (buttonPressed && isInsideButton(lastTouchX, lastTouchY)) {
-		if (clacSound && clacSound.isLoaded()) {
-			clacSound.play();
-		}
-		
-		// Check if in waitingForButtonClick mode - start video
-		if (waitingForButtonClick) {
-			if (jingleSound && jingleSound.isLoaded()) {
-				jingleSound.stop();
-				jingleSound.setVolume(0.2);
-				jingleSound.play();
-			}
-			if (antijingleSound && antijingleSound.isLoaded()) {
-				antijingleSound.stop();
-			}
-			reverseVideo.pause(); // Ensure reverse video is paused
-			video.play();
-			isPlaying = true;
-			waitingForButtonClick = false;
-			buttonPressed = false;
-			return false;
-		}
-		
-		// Check if in UI mode - exit and play reverse video
-		if (showingUI) {
-			showingUI = false;
-			if (antijingleSound && antijingleSound.isLoaded()) {
-				antijingleSound.stop();
-				antijingleSound.setVolume(0.2);
-				antijingleSound.play();
-			}
-			if (jingleSound && jingleSound.isLoaded()) {
-				jingleSound.stop();
-			}
-			video.pause(); // Ensure main video is paused
-			isPlaying = false;
-			if (reverseVideoLoaded && reverseVideo) {
-				reverseVideo.time(0);
-				reverseVideo.play();
-				playingReverseVideo = true;
-			}
-			buttonPressed = false;
-			return false;
-		}
-		
-		let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-		let buttonMoved = frame >= 30;
-		   if (frame < 30 && !buttonClicked) {
-			   if (!isPlaying && !playingReverseVideo) {
-				   if (jingleSound && jingleSound.isLoaded()) {
-					   jingleSound.stop(); // Stop any currently playing jingle
-					   jingleSound.setVolume(0.2);
-					   jingleSound.play();
-				   }
-				   if (antijingleSound && antijingleSound.isLoaded()) {
-					   antijingleSound.stop(); // Stop antijingle if playing
-				   }
-				   video.stop();
-				   video.play();
-				   isPlaying = true;
-				   buttonClicked = true;
-			   }
-		   } else {
-			   if (antijingleSound && antijingleSound.isLoaded()) {
-				   antijingleSound.stop(); // Stop any currently playing antijingle
-				   antijingleSound.setVolume(0.2);
-				   antijingleSound.play();
-			   }
-			   if (jingleSound && jingleSound.isLoaded()) {
-				   jingleSound.stop(); // Stop jingle if playing
-			   }
-			   video.pause(); // Stop main video
-			   isPlaying = false;
-			   if (reverseVideoLoaded && reverseVideo) {
-				   reverseVideo.time(0);
-				   reverseVideo.play();
-				   playingReverseVideo = true;
-			   }
-		   }
-	}
-	// Arrow buttons
-	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
-	let buttonMoved = frame >= 30;
-	if (buttonMoved) {
-		let arrowIdx = isInsideArrowButton(lastTouchX, lastTouchY);
-		if (arrowIdx !== -1) {
-			// Handle navigation based on arrow button (order: down, left, up, right)
-			if (arrowIdx === 0) navigateDown();
-			else if (arrowIdx === 1) navigateLeft();
-			else if (arrowIdx === 2) navigateUp();
-			else if (arrowIdx === 3) navigateRight();
-			
-			if (ticlicSound && ticlicSound.isLoaded()) {
-				ticlicSound.rate(0.8); // lower pitch
-				ticlicSound.play();
-			}
-		}
-	}
-	buttonPressed = false;
-	return false; // Prevent default
+	handleButtonRelease(lastTouchX, lastTouchY);
+	handleArrowNavigation(lastTouchX, lastTouchY);
+	return false;
 }
 
 function windowResized() {
@@ -1233,35 +716,21 @@ function windowResized() {
 	noiseGfx.pixelDensity(1);
 }
 
-// Highly optimized film noise overlay: draw sparse, large, semi-transparent dots
 function drawFilmNoise() {
 	noiseGfx.clear();
 	noiseGfx.noStroke();
-	let dotSize = 2; // Larger dots for less fill calls
-	// Use lighter noise in first frame mode, heavier in video playing mode
-	let density = waitingForButtonClick ? 0.015 : 0.03;
-	let alpha = waitingForButtonClick ? 0.05 : 0.1;
-	let numDots = int(width * height * density / (dotSize * dotSize));
+	
+	const dotSize = 2;
+	const density = waitingForButtonClick ? 0.015 : 0.03;
+	const alphaVal = waitingForButtonClick ? 12.75 : 25.5; // Pre-calculated 255 * alpha
+	const numDots = int(width * height * density * 0.25); // Optimized calculation
+	const w = width;
+	const h = height;
+	
 	for (let i = 0; i < numDots; i++) {
-		let x = int(random(width));
-		let y = int(random(height));
-		let val = random(180, 255); // light noise
-		noiseGfx.fill(val, 255 * alpha);
-		noiseGfx.rect(x, y, dotSize, dotSize);
+		noiseGfx.fill(random(180, 255), alphaVal);
+		noiseGfx.rect(int(random(w)), int(random(h)), dotSize, dotSize);
 	}
-	image(noiseGfx, 0, 0, width, height);
+	
+	image(noiseGfx, 0, 0);
 }
-
-
-
-
-
-
-////////////////////////// EN FAIT //////////////////////////
-//je sais comment je vais faire, pas de pdf, les projets etc interfaces seront en images
-//avec une array[page1,page2 etc] pour faire des correspondance plus simples entre les images et les boutons
-//genre if array[p]=[1] {
-//if lowbtn=1 {
-//array[p]==[p+1]}} et vice versa
-//ça sera plus simple aussi pour la texture à appliquer pour incruster, ça sera direct sur les images
-//et pour les animations aussi, je ferai des gifs optimisés (si possible ez avec P5 ou alors video)
