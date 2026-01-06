@@ -136,8 +136,13 @@ function setup() {
 	let canvas = createCanvas(w, h);
 	canvas.parent(document.body);
 	canvas.style('display', 'block');
+	canvas.style('position', 'fixed');
+	canvas.style('top', '0');
+	canvas.style('left', '0');
 	canvas.style('width', '100vw');
 	canvas.style('height', '100vh');
+	canvas.style('margin', '0');
+	canvas.style('padding', '0');
 	
 	// Optimize for iOS devices
 	if (isIOS) {
@@ -158,9 +163,19 @@ function setup() {
 	if (video) video.time(0);
 	
 	// Prevent default touch behaviors on iOS
+	document.documentElement.style.touchAction = 'none';
+	document.documentElement.style.overflow = 'hidden';
+	document.documentElement.style.position = 'fixed';
+	document.documentElement.style.width = '100%';
+	document.documentElement.style.height = '100%';
+	document.documentElement.style.margin = '0';
+	document.documentElement.style.padding = '0';
+	
 	document.body.style.touchAction = 'none';
 	document.body.style.overflow = 'hidden';
 	document.body.style.position = 'fixed';
+	document.body.style.top = '0';
+	document.body.style.left = '0';
 	document.body.style.width = '100%';
 	document.body.style.height = '100%';
 	document.body.style.margin = '0';
