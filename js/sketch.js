@@ -44,6 +44,10 @@ let buttonPressed = false;
 let waitingForButtonClick = true;
 let lastTouchX = 0;
 let lastTouchY = 0;
+let keyboardArrowPressed = -1; // -1 = none, 0=down, 1=left, 2=up, 3=right
+let spaceKeyPressed = false; // Track spacebar for button
+let enterKeyPressed = false; // Track enter key for button
+
 
 // Video4 scroll control
 let video4ScrollPosition = 0;
@@ -57,10 +61,14 @@ let video4NeedsUpdate = false;
 let video4LastAutoPlayTime = 0;
 let video4LastScrollTime = 0;
 let video4IsUserInteracting = false; // Track if user is holding mouse/touch
+let video4UpKeyHeld = false; // Track if up arrow is held
+let video4DownKeyHeld = false; // Track if down arrow is held
+let video4LastKeyScrubTime = 0;
 const video4ScrollSpeed = 0.02; // Frames per scroll unit
 const video4MinFrameInterval = 50; // Min 50ms between updates
 const video4AutoPlaySpeed = 100; // ms per frame for auto-play
 const video4AutoPlayDelay = 1000; // Wait 1s after scroll before auto-playing
+const video4KeyScrubSpeed = 50; // ms per frame when holding arrow key (faster than auto-play)
 
 function preload() {
 	// Setup all videos
@@ -208,7 +216,7 @@ function getButtonBounds() {
 	let frame = Math.floor(video.time() * VIDEO_FRAMERATE);
 	let bx, by, bw, bh;
 	
-	if (frame < 30) {
+	if (frame < 35) {
 		bx = buttonOriginalX;
 		by = buttonOriginalY;
 		bw = buttonW;
@@ -297,8 +305,17 @@ function draw() {
 				playingVideo5 = false;
 				playingVideo4 = false;
 				playingVideo3 = false;
+				// Reset button states for UI interaction
+				buttonPressed = false;
+				buttonClicked = false;
+				// Enter UI mode at p2 with buttons fully interactive
 				currentUIState = 'p2';
 				showingUI = true;
+				// Ensure main video is paused
+				if (video && video.elt) {
+					video.pause();
+					isPlaying = false;
+				}
 			}
 		}
 		drawFilmNoise();
@@ -312,8 +329,21 @@ function draw() {
 			let currentTime = millis();
 			let timeSinceScroll = currentTime - video4LastScrollTime;
 			
-			// If enough time has passed since last scroll and user is not interacting, auto-play
-			if (!video4IsUserInteracting && timeSinceScroll > video4AutoPlayDelay) {
+			// Handle continuous key scrubbing when arrow keys are held
+			if (video4UpKeyHeld || video4DownKeyHeld) {
+				let timeSinceKeyScrub = currentTime - video4LastKeyScrubTime;
+				if (timeSinceKeyScrub >= video4KeyScrubSpeed) {
+					if (video4UpKeyHeld) {
+						video4CurrentFrame = constrain(video4CurrentFrame - 1, 0, video4FrameCount - 1);
+					} else if (video4DownKeyHeld) {
+						video4CurrentFrame = constrain(video4CurrentFrame + 1, 0, video4FrameCount - 1);
+					}
+					video4LastKeyScrubTime = currentTime;
+					video4LastScrollTime = currentTime;
+				}
+			}
+			// Else if enough time has passed since last scroll and user is not interacting, auto-play
+			else if (!video4IsUserInteracting && timeSinceScroll > video4AutoPlayDelay) {
 				let timeSinceAutoPlay = currentTime - video4LastAutoPlayTime;
 				if (timeSinceAutoPlay >= video4AutoPlaySpeed) {
 					video4CurrentFrame = constrain(video4CurrentFrame + 1, 0, video4FrameCount - 1);
@@ -371,8 +401,8 @@ function draw() {
 		}
 		drawFilmNoise();
 		
-		// Draw back button while video4 is playing
-		if (backUI0Img && backUIImg) {
+		// Draw back button while video4 is playing (but not when video5 is playing)
+		if (!playingVideo5 && backUI0Img && backUIImg) {
 			let smallestSide = min(width, height);
 			let btnSize = smallestSide / 6;
 			let btnX = width - btnSize - 20;
@@ -424,8 +454,8 @@ function draw() {
 		}
 		drawFilmNoise();
 		
-		// Draw back button when video2 is frozen
-		if (video2.time() >= video2.duration() && backUI0Img && backUIImg) {
+		// Draw back button when video2 is frozen (but not when reverseVideo2 is playing)
+		if (video2.time() >= video2.duration() && !playingReverseVideo2 && backUI0Img && backUIImg) {
 			let smallestSide = min(width, height);
 			let btnSize = smallestSide / 6;
 			let btnX = width - btnSize - 20;
@@ -497,7 +527,7 @@ function draw() {
 	
 	// Handle video playback - cache bounds calculation
 	let bounds = getButtonBounds();
-	let buttonMoved = bounds.frame >= 30;
+	let buttonMoved = bounds.frame >= 35;
 	
 	// Update cursor
 	updateCursor(bounds, buttonMoved, dims);
@@ -532,6 +562,12 @@ function draw() {
 
 // Helper: Update cursor based on button/arrow hover
 function updateCursor(bounds, buttonMoved, dims) {
+	// Force default cursor during transition videos
+	if (playingReverseVideo || playingReverseVideo2 || playingVideo3 || playingVideo4 || playingVideo5) {
+		document.body.style.cursor = 'default';
+		return;
+	}
+	
 	let arrowHovered = false;
 	
 	if (buttonMoved) {
@@ -581,18 +617,27 @@ function renderArrowButtonEffects(dims) {
 	let scaleFactor = dims.displayWidth / videoOriginalWidth;
 	let maskInset = 10 * scaleFactor;
 	
-	for (let btn of squareButtons) {
+	for (let i = 0; i < squareButtons.length; i++) {
+		let btn = squareButtons[i];
 		let btnX = dims.offsetX + (btn.x / videoOriginalWidth) * dims.displayWidth;
 		let btnY = dims.offsetY + (btn.y / videoOriginalHeight) * dims.displayHeight;
 		let btnSize = btn.size * scaleFactor;
 		
 		let pressed = false;
-		if (mouseIsPressed && mouseButton === LEFT &&
+		
+		// Check keyboard press
+		if (keyboardArrowPressed === i) {
+			pressed = true;
+		}
+		
+		// Check mouse press
+		if (!pressed && mouseIsPressed && mouseButton === LEFT &&
 		    mouseX >= btnX && mouseX <= btnX + btnSize &&
 		    mouseY >= btnY && mouseY <= btnY + btnSize) {
 			pressed = true;
 		}
 		
+		// Check touch press
 		if (!pressed && touches && touches.length > 0) {
 			for (let t of touches) {
 				if (t.x >= btnX && t.x <= btnX + btnSize &&
@@ -615,7 +660,7 @@ function isInsideButton(px, py) {
 	let bounds = getButtonBounds();
 	let frame = bounds.frame;
 	
-	if (frame < 30 && buttonClicked) return false;
+	if (frame < 35 && buttonClicked) return false;
 	
 	return (px >= bounds.x && px <= bounds.x + bounds.w &&
 	        py >= bounds.y && py <= bounds.y + bounds.h);
@@ -668,8 +713,11 @@ function stopSound(sound) {
 function navigateLeft() {
 	let depth = currentUIState.replace('p', '').length;
 	
-	if (depth === 1 && currentUIState === 'p1') {
-		currentUIState = 'p0';
+	if (depth === 1) {
+		// From any depth-1 state (p1, p2, p3), go back to p0
+		if (currentUIState !== 'p0') {
+			currentUIState = 'p0';
+		}
 	} else if (depth > 1) {
 		let base = currentUIState.slice(0, -1);
 		let lastDigit = parseInt(currentUIState.slice(-1));
@@ -786,16 +834,23 @@ function handleBackButtonClick(x, y) {
 function handleButtonPressStart(x, y) {
 	if (handleBackButtonClick(x, y)) return;
 	
-	// Don't allow button press when reverseVideo is playing
-	if (playingReverseVideo) return;
+	// Don't allow button press when transition videos are playing
+	if (playingReverseVideo || playingReverseVideo2 || playingVideo2 || playingVideo3 || playingVideo5) return;
 	
-	if (isInsideButton(x, y)) {
+	// Don't allow main button press during video4 (only back button works)
+	if (playingVideo4) return;
+	
+	// Check if big button should be clickable (firstframe mode or frame 35+)
+	let currentFrame = Math.floor(video.time() * VIDEO_FRAMERATE);
+	let canPressButton = waitingForButtonClick || currentFrame >= 35;
+	
+	if (canPressButton && isInsideButton(x, y)) {
 		playClickSound();
 		buttonPressed = true;
 	}
 	
 	let bounds = getButtonBounds();
-	if (bounds.frame >= 30) {
+	if (bounds.frame >= 35) {
 		let arrowIdx = isInsideArrowButton(x, y);
 		if (arrowIdx !== -1) {
 			playSound(ticlicSound, 0.4, 1.3);
@@ -805,6 +860,12 @@ function handleButtonPressStart(x, y) {
 
 // Helper: Handle button release
 function handleButtonRelease(x, y) {
+	// Don't allow button release during transition videos
+	if (playingReverseVideo || playingReverseVideo2 || playingVideo3 || playingVideo4 || playingVideo5) {
+		buttonPressed = false;
+		return;
+	}
+	
 	if (!buttonPressed) {
 		return;
 	}
@@ -849,7 +910,7 @@ function handleButtonRelease(x, y) {
 	
 	// During video playback
 	let bounds = getButtonBounds();
-	if (bounds.frame < 30 && !buttonClicked) {
+	if (bounds.frame < 35 && !buttonClicked) {
 		if (!isPlaying && !playingReverseVideo) {
 			playSound(jingleSound);
 			stopSound(antijingleSound);
@@ -876,6 +937,9 @@ function handleButtonRelease(x, y) {
 
 // Helper: Handle arrow button navigation
 function handleArrowNavigation(x, y) {
+	// Don't allow arrow navigation during transition videos
+	if (playingReverseVideo || playingReverseVideo2 || playingVideo3 || playingVideo4 || playingVideo5) return;
+	
 	let bounds = getButtonBounds();
 	if (bounds.frame < 30) return;
 	
@@ -954,6 +1018,275 @@ function touchEnded() {
 	handleButtonRelease(lastTouchX, lastTouchY);
 	handleArrowNavigation(lastTouchX, lastTouchY);
 	return false;
+}
+
+function keyPressed() {
+	// Handle spacebar and enter for big button (only in firstframe mode or from frame 35+)
+	if ((keyCode === 32 || keyCode === ENTER) && !playingReverseVideo && !playingReverseVideo2 && !playingVideo2 && !playingVideo3 && !playingVideo4 && !playingVideo5) {
+		let currentFrame = Math.floor(video.time() * VIDEO_FRAMERATE);
+		let canPress = waitingForButtonClick || currentFrame >= 35;
+		
+		if (canPress) {
+			if (keyCode === 32 && !spaceKeyPressed) {
+				spaceKeyPressed = true;
+				playClickSound();
+				buttonPressed = true;
+				return false;
+			} else if (keyCode === ENTER && !enterKeyPressed) {
+				enterKeyPressed = true;
+				playClickSound();
+				buttonPressed = true;
+				return false;
+			}
+		}
+	}
+	
+	// Handle video4 frame scrubbing with up/down arrows
+	if (playingVideo4 && video4Loaded) {
+		if (keyCode === UP_ARROW) {
+			if (!video4UpKeyHeld) {
+				// Initial press - move immediately
+				video4CurrentFrame -= 3;
+				video4CurrentFrame = constrain(video4CurrentFrame, 0, video4FrameCount - 1);
+				video4UpKeyHeld = true;
+				video4LastKeyScrubTime = millis();
+				video4LastScrollTime = millis();
+			}
+			return false;
+		} else if (keyCode === DOWN_ARROW) {
+			if (!video4DownKeyHeld) {
+				// Initial press - move immediately
+				video4CurrentFrame += 3;
+				video4CurrentFrame = constrain(video4CurrentFrame, 0, video4FrameCount - 1);
+				video4DownKeyHeld = true;
+				video4LastKeyScrubTime = millis();
+				video4LastScrollTime = millis();
+			}
+			return false;
+		}
+	}
+	
+	// Handle left arrow for back button when video2 or video4 is active
+	if (keyCode === LEFT_ARROW) {
+		// Check if back button is available in video2 (frozen, and not playing reverseVideo2)
+		if (playingVideo2 && video2.time() >= video2.duration() && !playingReverseVideo2) {
+			playSound(clickSound, 0.2, random(0.95, 1.05));
+			return false;
+		}
+		// Check if back button is available in video4 (and not playing video5)
+		if (playingVideo4 && !playingVideo5) {
+			playSound(clickSound, 0.2, random(0.95, 1.05));
+			return false;
+		}
+	}
+	
+	// Handle arrow keys in UI mode or when frame >= 35
+	let currentFrame = Math.floor(video.time() * VIDEO_FRAMERATE);
+	let arrowsAvailable = showingUI || (!playingReverseVideo && !playingReverseVideo2 && !playingVideo2 && !playingVideo3 && !playingVideo4 && !playingVideo5 && currentFrame >= 35);
+	
+	if (arrowsAvailable && [37, 38, 39, 40].includes(keyCode)) {
+		// Play ticlic sound at higher rate on key press
+		playSound(ticlicSound, 0.4, 1.3);
+		
+		// Mark which arrow is pressed for visual feedback
+		if (keyCode === DOWN_ARROW) keyboardArrowPressed = 0;
+		else if (keyCode === LEFT_ARROW) keyboardArrowPressed = 1;
+		else if (keyCode === UP_ARROW) keyboardArrowPressed = 2;
+		else if (keyCode === RIGHT_ARROW) keyboardArrowPressed = 3;
+		
+		return false; // Prevent default scrolling
+	}
+}
+
+function keyReleased() {
+	// Handle spacebar and enter release for big button
+	if ((keyCode === 32 || keyCode === ENTER) && !playingReverseVideo && !playingReverseVideo2 && !playingVideo3 && !playingVideo4 && !playingVideo5) {
+		if (keyCode === 32 && spaceKeyPressed) {
+			spaceKeyPressed = false;
+			
+			if (!buttonPressed) return false;
+			
+			// Play clac sound
+			playSound(clacSound);
+			clacSound.setVolume(1.3);
+			
+			// Starting from first frame state
+			if (waitingForButtonClick) {
+				playSound(jingleSound);
+				stopSound(antijingleSound);
+				reverseVideo.pause();
+				video.play();
+				isPlaying = true;
+				waitingForButtonClick = false;
+				buttonPressed = false;
+				return false;
+			}
+			
+			// Exiting UI mode
+			if (showingUI) {
+				showingUI = false;
+				playSound(antijingleSound);
+				stopSound(jingleSound);
+				video.pause();
+				isPlaying = false;
+				if (reverseVideoLoaded && reverseVideo) {
+					reverseVideo.time(0);
+					reverseVideo.play();
+					playingReverseVideo = true;
+				}
+				buttonPressed = false;
+				return false;
+			}
+			
+			// During video playback
+			let bounds = getButtonBounds();
+			if (bounds.frame < 30 && !buttonClicked) {
+				if (!isPlaying && !playingReverseVideo) {
+					playSound(jingleSound);
+					stopSound(antijingleSound);
+					reverseVideo.pause();
+					video.stop();
+					video.play();
+					isPlaying = true;
+					buttonClicked = true;
+				}
+			} else {
+				playSound(antijingleSound);
+				stopSound(jingleSound);
+				video.pause();
+				isPlaying = false;
+				if (reverseVideoLoaded && reverseVideo) {
+					reverseVideo.time(0);
+					reverseVideo.play();
+					playingReverseVideo = true;
+				}
+			}
+			
+			buttonPressed = false;
+			return false;
+		} else if (keyCode === ENTER && enterKeyPressed) {
+			enterKeyPressed = false;
+			
+			if (!buttonPressed) return false;
+			
+			// Play clac sound
+			playSound(clacSound);
+			clacSound.setVolume(1.3);
+			
+			// Starting from first frame state
+			if (waitingForButtonClick) {
+				playSound(jingleSound);
+				stopSound(antijingleSound);
+				reverseVideo.pause();
+				video.play();
+				isPlaying = true;
+				waitingForButtonClick = false;
+				buttonPressed = false;
+				return false;
+			}
+			
+			// Exiting UI mode
+			if (showingUI) {
+				showingUI = false;
+				playSound(antijingleSound);
+				stopSound(jingleSound);
+				video.pause();
+				isPlaying = false;
+				if (reverseVideoLoaded && reverseVideo) {
+					reverseVideo.time(0);
+					reverseVideo.play();
+					playingReverseVideo = true;
+				}
+				buttonPressed = false;
+				return false;
+			}
+			
+			// During video playback
+			let bounds = getButtonBounds();
+			if (bounds.frame < 35 && !buttonClicked) {
+				if (!isPlaying && !playingReverseVideo) {
+					playSound(jingleSound);
+					stopSound(antijingleSound);
+					reverseVideo.pause();
+					video.stop();
+					video.play();
+					isPlaying = true;
+					buttonClicked = true;
+				}
+			} else {
+				playSound(antijingleSound);
+				stopSound(jingleSound);
+				video.pause();
+				isPlaying = false;
+				if (reverseVideoLoaded && reverseVideo) {
+					reverseVideo.time(0);
+					reverseVideo.play();
+					playingReverseVideo = true;
+				}
+			}
+			
+			buttonPressed = false;
+			return false;
+		}
+	}
+	
+	// Clear video4 arrow key held states
+	if (playingVideo4 && video4Loaded) {
+		if (keyCode === UP_ARROW) {
+			video4UpKeyHeld = false;
+			return false;
+		} else if (keyCode === DOWN_ARROW) {
+			video4DownKeyHeld = false;
+			return false;
+		}
+	}
+	
+	// Handle left arrow for back button release
+	if (keyCode === LEFT_ARROW) {
+		// Check if back button is available in video2 (frozen, and not playing reverseVideo2)
+		if (playingVideo2 && video2.time() >= video2.duration() && !playingReverseVideo2) {
+			playSound(ticlicSound, 0.4);
+			if (reverseVideo2Loaded && reverseVideo2) {
+				reverseVideo2.time(0);
+				reverseVideo2.play();
+				playingReverseVideo2 = true;
+			}
+			return false;
+		}
+		// Check if back button is available in video4 (and not playing video5)
+		if (playingVideo4 && !playingVideo5) {
+			playSound(ticlicSound, 0.4);
+			if (video5Loaded && video5) {
+				video5.time(0);
+				video5.play();
+				playingVideo5 = true;
+			}
+			return false;
+		}
+	}
+	
+	// Clear keyboard arrow press state
+	let wasPressed = keyboardArrowPressed;
+	keyboardArrowPressed = -1;
+	
+	// Handle arrow key release when available (UI mode or frame >= 35)
+	let currentFrame = Math.floor(video.time() * VIDEO_FRAMERATE);
+	let arrowsAvailable = showingUI || (!playingReverseVideo && !playingReverseVideo2 && !playingVideo2 && !playingVideo3 && !playingVideo4 && !playingVideo5 && currentFrame >= 35);
+	
+	if (arrowsAvailable && wasPressed !== -1 && [37, 38, 39, 40].includes(keyCode)) {
+		// Play ticlic sound at lower rate on key release
+		playSound(ticlicSound, 0.4, 0.8);
+		
+		// Execute navigation only in UI mode
+		if (showingUI) {
+			if (keyCode === LEFT_ARROW) navigateLeft();
+			else if (keyCode === RIGHT_ARROW) navigateRight();
+			else if (keyCode === UP_ARROW) navigateUp();
+			else if (keyCode === DOWN_ARROW) navigateDown();
+		}
+		
+		return false;
+	}
 }
 
 function windowResized() {
