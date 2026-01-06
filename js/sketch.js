@@ -133,7 +133,7 @@ function setup() {
 		h = window.innerHeight;
 	}
 	
-	let canvas = createCanvas(w, h);
+	let canvas = createCanvas(w, h, WEBGL);
 	canvas.parent(document.body);
 	canvas.style('display', 'block');
 	canvas.style('position', 'fixed');
@@ -157,6 +157,7 @@ function setup() {
 		video4AutoPlaySpeed = 100;
 	}
 	
+	// Use 2D graphics for noise overlay (more compatible)
 	noiseGfx = createGraphics(w, h);
 	noiseGfx.pixelDensity(1);
 	
@@ -383,8 +384,13 @@ let cachedDims = null;
 let lastCanvasSize = { w: 0, h: 0 };
 
 function draw() {
+	// WebGL setup
 	noSmooth();
 	background(0);
+	
+	// Reset WebGL transformations and use 2D-style coordinates
+	push();
+	translate(-width/2, -height/2);
 	
 	// Cache dimensions to avoid recalculation every frame
 	if (!cachedDims || lastCanvasSize.w !== width || lastCanvasSize.h !== height) {
@@ -682,10 +688,13 @@ function draw() {
 	
 	// Show loading if video not ready
 	if (!videoLoaded) {
+		push();
 		fill(255);
 		textAlign(CENTER, CENTER);
 		textSize(16);
-		text("Loading...", width/2, height/2);
+		text("Loading...", 0, 0); // WebGL center
+		pop();
+		pop(); // Close main transformation
 		return;
 	}
 	
@@ -748,6 +757,8 @@ function draw() {
 	if (buttonMoved) {
 		renderArrowButtonEffects(dims);
 	}
+	
+	pop(); // Close WebGL transformation
 }
 
 // Helper: Update cursor based on button/arrow hover
@@ -1535,7 +1546,7 @@ function keyReleased() {
 function windowResized() {
 	let w = window.innerWidth;
 	let h = window.innerHeight;
-	resizeCanvas(w, h);
+	resizeCanvas(w, h, WEBGL);
 	
 	// Recreate noise graphics with new size
 	if (noiseGfx) {
@@ -1587,5 +1598,9 @@ function drawFilmNoise() {
 	}
 	
 	noiseFrameCounter++;
+	// Draw noise overlay in WebGL coordinates
+	push();
+	translate(-width/2, -height/2);
 	image(noiseGfx, 0, 0);
+	pop();
 }
