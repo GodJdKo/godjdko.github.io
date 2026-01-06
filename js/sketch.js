@@ -1,6 +1,9 @@
 // Sound effects
 let clickSound, jingleSound, antijingleSound, clacSound, ticlicSound;
 
+// Graphics
+let noiseGfx;
+
 // Images
 let btnPressedImg, lightMaskImg, backUI0Img, backUIImg;
 let uiImages = {};
@@ -149,12 +152,41 @@ function setup() {
 	document.body.style.margin = '0';
 	document.body.style.padding = '0';
 	
-	// Force resize after a moment to fix iOS initial sizing
+	// Force multiple resize attempts on iOS to fix stretching
 	if (isIOS) {
 		setTimeout(() => {
-			resizeCanvas(window.innerWidth, window.innerHeight);
+			let w = window.innerWidth;
+			let h = window.innerHeight;
+			resizeCanvas(w, h);
+			if (noiseGfx) {
+				noiseGfx.remove();
+				noiseGfx = createGraphics(w, h);
+				noiseGfx.pixelDensity(1);
+			}
 			cachedDims = null;
-		}, 100);
+		}, 50);
+		setTimeout(() => {
+			let w = window.innerWidth;
+			let h = window.innerHeight;
+			resizeCanvas(w, h);
+			if (noiseGfx) {
+				noiseGfx.remove();
+				noiseGfx = createGraphics(w, h);
+				noiseGfx.pixelDensity(1);
+			}
+			cachedDims = null;
+		}, 200);
+		setTimeout(() => {
+			let w = window.innerWidth;
+			let h = window.innerHeight;
+			resizeCanvas(w, h);
+			if (noiseGfx) {
+				noiseGfx.remove();
+				noiseGfx = createGraphics(w, h);
+				noiseGfx.pixelDensity(1);
+			}
+			cachedDims = null;
+		}, 500);
 	}
 	
 	// Handle orientation changes on iOS
@@ -428,11 +460,11 @@ function draw() {
 			
 			// iOS: Aggressively clean up distant frames to prevent memory crashes
 			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-			if (isIOS && frameIndex % 5 === 0) {
-				// Every 5 frames, clean up frames far from current position
+			if (isIOS) {
+				// Every frame, clean up frames far from current position
 				for (let i = 0; i < video4Frames.length; i++) {
-					if (video4Frames[i] && Math.abs(i - frameIndex) > 10) {
-						video4Frames[i].remove();
+					if (video4Frames[i] && Math.abs(i - frameIndex) > 5) {
+						if (video4Frames[i].remove) video4Frames[i].remove();
 						video4Frames[i] = null;
 					}
 				}
@@ -440,9 +472,9 @@ function draw() {
 			
 			// Smart preloading: adaptive radius based on device and only load if frame changed
 			if (frameIndex !== video4PrevFrame) {
-				// Much smaller radius on iOS to prevent crashes and smooth performance
+				// Extremely small radius on iOS to prevent crashes
 				let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-				let preloadRadius = isIOS ? 5 : (width < 768) ? 10 : 20;
+				let preloadRadius = isIOS ? 3 : (width < 768) ? 8 : 15;
 				
 				// Prioritize forward loading (direction of auto-play)
 				for (let i = 0; i <= preloadRadius; i++) {
