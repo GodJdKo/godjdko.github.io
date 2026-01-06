@@ -66,7 +66,7 @@ let video4DownKeyHeld = false; // Track if down arrow is held
 let video4LastKeyScrubTime = 0;
 const video4ScrollSpeed = 0.02; // Frames per scroll unit
 const video4MinFrameInterval = 50; // Min 50ms between updates
-const video4AutoPlaySpeed = 100; // ms per frame for auto-play
+let video4AutoPlaySpeed = 100; // ms per frame for auto-play (adjusted for iOS)
 const video4AutoPlayDelay = 1000; // Wait 1s after scroll before auto-playing
 const video4KeyScrubSpeed = 50; // ms per frame when holding arrow key (faster than auto-play)
 
@@ -90,11 +90,11 @@ function preload() {
 	video4Loaded = true;
 	
 	// Load sounds
-	clickSound = loadSound('sound/clic.wav');
-	jingleSound = loadSound('sound/jingle.wav');
-	antijingleSound = loadSound('sound/antijingle.wav');
-	clacSound = loadSound('sound/clac.wav');
-	ticlicSound = loadSound('sound/ticlic.wav');
+	clickSound = loadSound('sound/clic.mp3');
+	jingleSound = loadSound('sound/jingle.mp3');
+	antijingleSound = loadSound('sound/antijingle.mp3');
+	clacSound = loadSound('sound/clac.mp3');
+	ticlicSound = loadSound('sound/ticlic.mp3');
 	
 	// Load images
 	btnPressedImg = loadImage('img/btnpressed.jpg');
@@ -128,8 +128,11 @@ function setup() {
 		pixelDensity(1);
 		// Reduce frame rate on iOS for stability
 		frameRate(20);
+		// Slower auto-play on iOS to reduce memory pressure
+		video4AutoPlaySpeed = 150;
 	} else {
 		frameRate(VIDEO_FRAMERATE);
+		video4AutoPlaySpeed = 100;
 	}
 	
 	noiseGfx = createGraphics(w, h);
@@ -422,6 +425,18 @@ function draw() {
 			
 			// Get current frame index
 			let frameIndex = floor(constrain(video4CurrentFrame, 0, video4FrameCount - 1));
+			
+			// iOS: Aggressively clean up distant frames to prevent memory crashes
+			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+			if (isIOS && frameIndex % 5 === 0) {
+				// Every 5 frames, clean up frames far from current position
+				for (let i = 0; i < video4Frames.length; i++) {
+					if (video4Frames[i] && Math.abs(i - frameIndex) > 10) {
+						video4Frames[i].remove();
+						video4Frames[i] = null;
+					}
+				}
+			}
 			
 			// Smart preloading: adaptive radius based on device and only load if frame changed
 			if (frameIndex !== video4PrevFrame) {
@@ -783,10 +798,21 @@ function playClickSound() {
 // Helper: Play sound with volume control
 function playSound(sound, volume = 0.2, rate = 1) {
 	if (sound && sound.isLoaded()) {
-		sound.stop();
+		// Stop and reset to prevent overlap/crackling
+		if (sound.isPlaying()) {
+			sound.stop();
+		}
 		sound.setVolume(volume);
 		sound.rate(rate);
-		sound.play();
+		// Small delay on iOS to prevent crackling
+		let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+		if (isIOS) {
+			setTimeout(() => {
+				if (sound && sound.isLoaded()) sound.play();
+			}, 10);
+		} else {
+			sound.play();
+		}
 	}
 }
 
