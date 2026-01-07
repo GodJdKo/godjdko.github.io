@@ -1,9 +1,6 @@
 // Sound effects
 let clickSound, jingleSound, antijingleSound, clacSound, ticlicSound;
 
-// Graphics
-let noiseGfx;
-
 // Images
 let btnPressedImg, lightMaskImg, backUI0Img, backUIImg;
 let uiImages = {};
@@ -20,7 +17,7 @@ let video5Loaded = false;
 
 // Video4 frames (image sequence)
 let video4Frames = [];
-let video4FrameCount = 424; // video4-000.jpg to video4-423.jpg
+let video4FrameCount = 278; // video4-000.jpg to video4-277.jpg
 let video4FramesLoaded = 0;
 let video4Loaded = false;
 let playingReverseVideo = false;
@@ -157,10 +154,6 @@ function setup() {
 		video4AutoPlaySpeed = 100;
 	}
 	
-	// Use 2D graphics for noise overlay (more compatible)
-	noiseGfx = createGraphics(w, h);
-	noiseGfx.pixelDensity(1);
-	
 	if (video) video.time(0);
 	
 	// Prevent default touch behaviors on iOS
@@ -189,11 +182,6 @@ function setup() {
 			let w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
 			let h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 			resizeCanvas(w, h);
-			if (noiseGfx) {
-				noiseGfx.remove();
-				noiseGfx = createGraphics(w, h);
-				noiseGfx.pixelDensity(1);
-			}
 			cachedDims = null;
 		});
 		
@@ -203,11 +191,6 @@ function setup() {
 				let w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
 				let h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 				resizeCanvas(w, h);
-				if (noiseGfx) {
-					noiseGfx.remove();
-					noiseGfx = createGraphics(w, h);
-					noiseGfx.pixelDensity(1);
-				}
 				cachedDims = null;
 			}, delay);
 		});
@@ -218,11 +201,6 @@ function setup() {
 				let w = window.visualViewport.width;
 				let h = window.visualViewport.height;
 				resizeCanvas(w, h);
-				if (noiseGfx) {
-					noiseGfx.remove();
-					noiseGfx = createGraphics(w, h);
-					noiseGfx.pixelDensity(1);
-				}
 				cachedDims = null;
 			});
 		}
@@ -232,8 +210,6 @@ function setup() {
 	window.addEventListener('orientationchange', () => {
 		setTimeout(() => {
 			resizeCanvas(window.innerWidth, window.innerHeight);
-			noiseGfx = createGraphics(window.innerWidth, window.innerHeight);
-			noiseGfx.pixelDensity(1);
 			cachedDims = null;
 		}, 400);
 	});
@@ -420,7 +396,6 @@ function draw() {
 				waitingForButtonClick = true;
 			}
 		}
-		drawFilmNoise();
 		return;
 	}
 	
@@ -440,7 +415,6 @@ function draw() {
 				showingUI = true;
 			}
 		}
-		drawFilmNoise();
 		return;
 	}
 	
@@ -470,7 +444,6 @@ function draw() {
 				}
 			}
 		}
-		drawFilmNoise();
 		return;
 	}
 	
@@ -573,7 +546,6 @@ function draw() {
 				image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 			}
 		}
-		drawFilmNoise();
 		
 		// Draw back button while video4 is playing (but not when video5 is playing)
 		if (!playingVideo5 && backUI0Img && backUIImg) {
@@ -614,7 +586,6 @@ function draw() {
 				}
 			}
 		}
-		drawFilmNoise();
 		return;
 	}
 	
@@ -630,7 +601,6 @@ function draw() {
 				video2.time(video2.duration());
 			}
 		}
-		drawFilmNoise();
 		
 		// Draw back button when video2 is frozen (but not when reverseVideo2 is playing)
 		if (video2.time() >= video2.duration() && !playingReverseVideo2 && backUI0Img && backUIImg) {
@@ -682,7 +652,6 @@ function draw() {
 		// Render arrow button press effects
 		renderArrowButtonEffects(uiDims);
 		
-		drawFilmNoise();
 		return;
 	}
 	
@@ -712,7 +681,6 @@ function draw() {
 			image(firstFrameImages[currentFirstFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 		}
 		
-		drawFilmNoise();
 		
 		if (buttonPressed && btnPressedImg) {
 			image(btnPressedImg, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
@@ -731,7 +699,6 @@ function draw() {
 	// Update cursor
 	updateCursor(bounds, buttonMoved, dims);
 	
-	drawFilmNoise();
 	
 	// Check if video ended
 	if (isPlaying && video.time() >= video.duration()) {
@@ -1548,13 +1515,6 @@ function windowResized() {
 	let h = window.innerHeight;
 	resizeCanvas(w, h, WEBGL);
 	
-	// Recreate noise graphics with new size
-	if (noiseGfx) {
-		noiseGfx.remove();
-	}
-	noiseGfx = createGraphics(w, h);
-	noiseGfx.pixelDensity(1);
-	
 	// Clear dimension cache to force recalculation
 	cachedDims = null;
 	
@@ -1570,37 +1530,4 @@ function windowResized() {
 	}
 }
 
-// Film noise optimization
-let noiseFrameCounter = 0;
-let cachedNoiseFrame = null;
 
-function drawFilmNoise() {
-	// Reduce noise generation frequency on mobile for better performance
-	let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-	const updateFrequency = isIOS ? 4 : (width < 768) ? 2 : 1;
-	
-	if (noiseFrameCounter % updateFrequency === 0) {
-		noiseGfx.clear();
-		noiseGfx.noStroke();
-		
-		const dotSize = 2;
-		const density = waitingForButtonClick ? 0.015 : 0.03;
-		const alphaVal = waitingForButtonClick ? 12.75 : 25.5;
-		const numDots = int(width * height * density * 0.25);
-		const w = width;
-		const h = height;
-		
-		// Batch fill operations for better performance
-		for (let i = 0; i < numDots; i++) {
-			noiseGfx.fill(random(180, 255), alphaVal);
-			noiseGfx.rect(int(random(w)), int(random(h)), dotSize, dotSize);
-		}
-	}
-	
-	noiseFrameCounter++;
-	// Draw noise overlay in WebGL coordinates
-	push();
-	translate(-width/2, -height/2);
-	image(noiseGfx, 0, 0);
-	pop();
-}
