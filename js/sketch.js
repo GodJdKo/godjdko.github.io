@@ -101,10 +101,10 @@ let video4DownKeyHeld = false; // Track if down arrow is held
 let video4LastKeyScrubTime = 0;
 let video4LastWheelTime = 0; // Throttle wheel events
 let video4LastTouchMoveTime = 0; // Throttle touch move events
-const video4ScrollSpeed = 0.02; // Frames per scroll unit
+const video4ScrollSpeed = 0.01; // Frames per scroll unit
 const video4MinFrameInterval = 50; // Min 50ms between updates
 let video4AutoPlaySpeed = 100; // ms per frame for auto-play (adjusted for iOS)
-const video4AutoPlayDelay = 1000; // Wait 1s after scroll before auto-playing
+const video4AutoPlayDelay = 400; // Wait 1s after scroll before auto-playing
 const video4KeyScrubSpeed = 50; // ms per frame when holding arrow key (faster than auto-play)
 const video4WheelThrottle = 16; // Min 16ms between wheel updates (~60fps)
 const video4TouchMoveThrottle = 32; // Min 32ms between touch updates on iOS (~30fps)
@@ -116,7 +116,7 @@ let lastVideo5Use = 0;
 let lastReverseVideo2Use = 0;
 let video4FrameLastUse = []; // Track last use time for each frame
 let lastCleanupTime = 0;
-const RESOURCE_TIMEOUT = 5000; // Unload resources after 5 seconds of non-use
+const RESOURCE_TIMEOUT = 3000; // Unload resources after 3 seconds of non-use
 const CLEANUP_INTERVAL = 1000; // Run cleanup every second
 
 function preload() {
@@ -197,8 +197,6 @@ function setup() {
 	canvas.style('position', 'fixed');
 	canvas.style('top', '0');
 	canvas.style('left', '0');
-	canvas.style('width', '100vw');
-	canvas.style('height', '100vh');
 	canvas.style('margin', '0');
 	canvas.style('padding', '0');
 	applyNoSmoothing();
