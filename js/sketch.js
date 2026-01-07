@@ -247,8 +247,6 @@ function setup() {
 	
 	// Optimize for iOS devices
 	if (isIOS) {
-		// Force lowest pixel density on iOS to prevent crashes
-		pixelDensity(1);
 		// Reduce frame rate on iOS for stability
 		frameRate(20);
 		// Slower auto-play on iOS to reduce memory pressure
@@ -380,11 +378,6 @@ function setupVideo(videoPath, onLoadCallback) {
 		vid.elt.style.transform = 'translateZ(0)';
 		vid.elt.style.backfaceVisibility = 'hidden';
 		vid.elt.style.webkitBackfaceVisibility = 'hidden';
-		
-		// Reduce quality on iOS for smoother playback
-		if (isIOS) {
-			vid.elt.style.imageRendering = 'auto';
-		}
 		
 		// iOS needs user interaction to enable sound
 		if (isIOS) {
