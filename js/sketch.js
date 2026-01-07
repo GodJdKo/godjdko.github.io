@@ -28,6 +28,7 @@ let btnPressedImg, lightMaskImg, backUI0Img, backUIImg, extUI0Img, extUIImg;
 let uiImages = {};
 let firstFrameImages = [];
 let noiseImages = [];
+let isUsingWebGL = false; // Track which renderer mode we're using
 
 // Main canvas reference (for styling)
 let mainCanvas = null;
@@ -208,12 +209,14 @@ function setup() {
 		// First attempt: WEBGL with antialias disabled
 		setAttributes('antialias', false);
 		canvas = createCanvas(w, h, WEBGL);
+		isUsingWebGL = true;
 		console.log('✓ Using WEBGL renderer (antialias off)');
 	} catch (e) {
 		console.warn('WebGL failed (antialias off):', e.message);
 		try {
 			// Second attempt: WEBGL with default attributes
 			canvas = createCanvas(w, h, WEBGL);
+			isUsingWebGL = true;
 			console.log('✓ Using WEBGL renderer (default attributes)');
 		} catch (e2) {
 			console.warn('WebGL failed (default):', e2.message);
@@ -221,6 +224,7 @@ function setup() {
 				// Final fallback: P2D mode
 				canvas = createCanvas(w, h, P2D);
 				rendererMode = 'P2D';
+				isUsingWebGL = false;
 				console.log('✓ Using P2D renderer (WebGL unavailable)');
 			} catch (e3) {
 				console.error('All renderers failed:', e3);
@@ -669,9 +673,9 @@ function draw() {
 	
 	// Reset WebGL transformations and use 2D-style coordinates
 	// In WEBGL mode, origin is at center, so translate to top-left
-	// In P2D mode, origin is already at top-left, so only translate if WEBGL
+	// In P2D mode, origin is already at top-left, so no transform needed
 	push();
-	if (drawingContext && drawingContext.canvas && drawingContext.canvas.getContext('webgl')) {
+	if (isUsingWebGL) {
 		translate(-width/2, -height/2);
 	}
 	
