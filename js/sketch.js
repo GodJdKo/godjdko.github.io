@@ -156,19 +156,9 @@ function preload() {
 }
 
 function setup() {
-	// Force proper viewport on iOS - use visualViewport if available
 	let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-	let w, h;
 	
-	if (isIOS && window.visualViewport) {
-		w = window.visualViewport.width;
-		h = window.visualViewport.height;
-	} else {
-		w = window.innerWidth;
-		h = window.innerHeight;
-	}
-	
-	let canvas = createCanvas(w, h, WEBGL);
+	let canvas = createCanvas(window.innerWidth, window.innerHeight, WEBGL);
 	canvas.parent(document.body);
 	canvas.style('display', 'block');
 	canvas.style('position', 'fixed');
@@ -194,7 +184,7 @@ function setup() {
 	
 	if (video) video.time(0);
 	
-	// Prevent default touch behaviors on iOS
+	// Prevent default touch behaviors
 	document.documentElement.style.touchAction = 'none';
 	document.documentElement.style.overflow = 'hidden';
 	document.documentElement.style.position = 'fixed';
@@ -213,38 +203,7 @@ function setup() {
 	document.body.style.margin = '0';
 	document.body.style.padding = '0';
 	
-	// Force immediate resize on iOS to fix stretching
-	if (isIOS) {
-		// Immediate resize
-		requestAnimationFrame(() => {
-			let w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-			let h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-			resizeCanvas(w, h);
-			cachedDims = null;
-		});
-		
-		// Multiple attempts with different timings
-		[10, 50, 100, 200, 500, 1000].forEach(delay => {
-			setTimeout(() => {
-				let w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-				let h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-				resizeCanvas(w, h);
-				cachedDims = null;
-			}, delay);
-		});
-		
-		// Listen for visualViewport resize on iOS
-		if (window.visualViewport) {
-			window.visualViewport.addEventListener('resize', () => {
-				let w = window.visualViewport.width;
-				let h = window.visualViewport.height;
-				resizeCanvas(w, h);
-				cachedDims = null;
-			});
-		}
-	}
-	
-	// Handle orientation changes on iOS
+	// Handle orientation changes
 	window.addEventListener('orientationchange', () => {
 		setTimeout(() => {
 			resizeCanvas(window.innerWidth, window.innerHeight);
