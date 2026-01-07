@@ -47,8 +47,11 @@ let video4FrameCount = 278; // video4-000.avif to video4-277.avif
 let video4FramesLoaded = 0;
 let video4Loaded = false;
 
+// Non-iOS video4 caching policy
+const VIDEO4_CACHE_RADIUS = 20; // keep at most 20 behind + 20 ahead (+ current)
+
 // iOS ultra-light loading for video4 (prevent Safari crashes)
-const VIDEO4_IOS_MAX_DIM = 1024; // downscale long side to this max
+const VIDEO4_IOS_MAX_DIM = 768; // downscale long side to this max
 const VIDEO4_IOS_LOAD_COOLDOWN = 90; // ms between starting loads
 let video4IOSDesiredFrame = 0;
 let video4IOSInFlightIndex = -1;
@@ -453,6 +456,18 @@ function disposeVideo4Frame(frame) {
 	} catch (e) {}
 }
 
+function enforceVideo4CacheWindow(frameIndex, radius) {
+	// Hard cap the number of decoded frames kept in memory.
+	for (let i = 0; i < video4FrameCount; i++) {
+		if (!video4Frames[i]) continue;
+		if (Math.abs(i - frameIndex) > radius) {
+			disposeVideo4Frame(video4Frames[i]);
+			video4Frames[i] = null;
+			video4FrameLastUse[i] = 0;
+		}
+	}
+}
+
 function downscaleToGraphicsIfNeeded(img, maxDim) {
 	if (!img || !img.width || !img.height) return img;
 	let scale = Math.min(1, maxDim / Math.max(img.width, img.height));
@@ -475,6 +490,14 @@ function resetVideo4IOSCache() {
 	if (video4IOSCachedImage) {
 		disposeVideo4Frame(video4IOSCachedImage);
 		video4IOSCachedImage = null;
+	}
+	// Always clear the video4 frame cache (all platforms) to truly free memory.
+	for (let i = 0; i < video4FrameCount; i++) {
+		if (video4Frames[i]) {
+			disposeVideo4Frame(video4Frames[i]);
+			video4Frames[i] = null;
+		}
+		video4FrameLastUse[i] = 0;
 	}
 }
 
@@ -591,27 +614,11 @@ function cleanupUnusedResources() {
 		video5Loaded = false;
 	}
 	
-	// Clean up video4 frames not used recently (skip on iOS; iOS uses single-frame cache)
-	if (playingVideo4 && !isIOS) {
+	// Clean up video4 frames: enforce strict window while video4 is active
+	if (playingVideo4) {
 		let frameIndex = floor(constrain(video4CurrentFrame, 0, video4FrameCount - 1));
-		let frameTimeout = 5000;
-		let keepRadius = 10;
-		
-		for (let i = 0; i < video4FrameCount; i++) {
-			if (video4Frames[i] && i !== frameIndex && i !== video4LastDisplayedFrame) {
-				// Clean up frames outside radius and not recently used
-				let outsideRadius = Math.abs(i - frameIndex) > keepRadius;
-				let notRecentlyUsed = video4FrameLastUse[i] && currentTime - video4FrameLastUse[i] > frameTimeout;
-				
-				if (outsideRadius && notRecentlyUsed) {
-					try {
-						disposeVideo4Frame(video4Frames[i]);
-					} catch(e) {}
-					video4Frames[i] = null;
-					video4FrameLastUse[i] = 0;
-				}
-			}
-		}
+		// Enforce a strict window to keep memory bounded.
+		enforceVideo4CacheWindow(frameIndex, VIDEO4_CACHE_RADIUS);
 	}
 }
 
@@ -728,11 +735,7 @@ function draw() {
 		// Fallback: keep showing the last video4 frame while video5 loads
 		else {
 			let fallbackDrawn = false;
-			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-			if (isIOS && video4IOSCachedImage && video4IOSCachedImage.width > 0) {
-				image(video4IOSCachedImage, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-				fallbackDrawn = true;
-			} else if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
+			if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
 				image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 				fallbackDrawn = true;
 			}
@@ -775,29 +778,38 @@ function draw() {
 			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 			
 			if (isIOS) {
-				video4IOSDesiredFrame = frameIndex;
+				// iOS: use the same bounded cache window as other platforms, but
+				// keep only one in-flight decode and downscale frames.
 				let now = millis();
 				let canStart = (video4IOSInFlightIndex === -1) && (now - video4IOSLastLoadStart >= VIDEO4_IOS_LOAD_COOLDOWN);
 				
-				if (video4IOSCachedIndex !== video4IOSDesiredFrame && canStart) {
-					let desired = video4IOSDesiredFrame;
+				// Keep memory bounded aggressively while scrubbing.
+				if (frameIndex !== video4PrevFrame) {
+					enforceVideo4CacheWindow(frameIndex, VIDEO4_CACHE_RADIUS);
+					video4PrevFrame = frameIndex;
+				}
+				
+				video4IOSDesiredFrame = frameIndex;
+				let desired = frameIndex;
+				if (video4Frames[desired]) {
+					for (let d = 1; d <= VIDEO4_CACHE_RADIUS; d++) {
+						let a = frameIndex - d;
+						let b = frameIndex + d;
+						if (a >= 0 && !video4Frames[a] && a !== video4IOSInFlightIndex) { desired = a; break; }
+						if (b < video4FrameCount && !video4Frames[b] && b !== video4IOSInFlightIndex) { desired = b; break; }
+					}
+				}
+				
+				if (!video4Frames[desired] && canStart) {
 					video4IOSInFlightIndex = desired;
 					video4IOSLastLoadStart = now;
 					let frameNum = nf(desired, 3);
 					loadImage(
 						`img/video4/video4-${frameNum}.avif`,
 						(img) => {
-							// If user moved since request, drop to avoid piling up
-							if (video4IOSDesiredFrame !== desired) {
-								disposeVideo4Frame(img);
-								if (video4IOSInFlightIndex === desired) video4IOSInFlightIndex = -1;
-								return;
-							}
 							let stored = downscaleToGraphicsIfNeeded(img, VIDEO4_IOS_MAX_DIM);
-							if (video4IOSCachedImage) disposeVideo4Frame(video4IOSCachedImage);
-							video4IOSCachedImage = stored;
-							video4IOSCachedIndex = desired;
-							video4LastDisplayedFrame = desired;
+							video4Frames[desired] = stored;
+							video4FrameLastUse[desired] = millis();
 							video4IOSInFlightIndex = -1;
 						},
 						() => {
@@ -806,14 +818,20 @@ function draw() {
 					);
 				}
 				
-				// Display cached frame, otherwise keep last (cached) image (avoid black)
-				if (video4IOSCachedImage && video4IOSCachedImage.width > 0) {
-					image(video4IOSCachedImage, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
+				// Draw current frame if ready; otherwise keep last displayed frame.
+				if (video4Frames[frameIndex] && video4Frames[frameIndex].width > 0) {
+					image(video4Frames[frameIndex], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
+					video4LastDisplayedFrame = frameIndex;
+					video4FrameLastUse[frameIndex] = millis();
+				} else if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
+					image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
+					video4FrameLastUse[video4LastDisplayedFrame] = millis();
 				}
 			} else {
 				// Non-iOS: prefetch and cache multiple frames
 				if (frameIndex !== video4PrevFrame) {
-					let preloadRadius = (width < 768) ? 8 : 15;
+					enforceVideo4CacheWindow(frameIndex, VIDEO4_CACHE_RADIUS);
+					let preloadRadius = VIDEO4_CACHE_RADIUS;
 					for (let i = 0; i <= preloadRadius; i++) {
 						let preloadIndex = frameIndex + i;
 						if (preloadIndex >= 0 && preloadIndex < video4FrameCount && !video4Frames[preloadIndex]) {
