@@ -156,9 +156,17 @@ function preload() {
 }
 
 function setup() {
+	// Force proper viewport on iOS - use visualViewport if available
 	let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-	let w = window.innerWidth;
-	let h = window.innerHeight;
+	let w, h;
+	
+	if (isIOS && window.visualViewport) {
+		w = window.visualViewport.width;
+		h = window.visualViewport.height;
+	} else {
+		w = window.innerWidth;
+		h = window.innerHeight;
+	}
 	
 	let canvas = createCanvas(w, h, WEBGL);
 	canvas.parent(document.body);
@@ -205,14 +213,43 @@ function setup() {
 	document.body.style.margin = '0';
 	document.body.style.padding = '0';
 	
-	// Handle orientation changes
-	window.addEventListener('orientationchange', () => {
-		setTimeout(() => {
-			let w = window.innerWidth;
-			let h = window.innerHeight;
+	// Force immediate resize on iOS to fix stretching
+	if (isIOS) {
+		// Immediate resize
+		requestAnimationFrame(() => {
+			let w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+			let h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 			resizeCanvas(w, h);
 			cachedDims = null;
-		}, 100);
+		});
+		
+		// Multiple attempts with different timings
+		[10, 50, 100, 200, 500, 1000].forEach(delay => {
+			setTimeout(() => {
+				let w = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+				let h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+				resizeCanvas(w, h);
+				cachedDims = null;
+			}, delay);
+		});
+		
+		// Listen for visualViewport resize on iOS
+		if (window.visualViewport) {
+			window.visualViewport.addEventListener('resize', () => {
+				let w = window.visualViewport.width;
+				let h = window.visualViewport.height;
+				resizeCanvas(w, h);
+				cachedDims = null;
+			});
+		}
+	}
+	
+	// Handle orientation changes on iOS
+	window.addEventListener('orientationchange', () => {
+		setTimeout(() => {
+			resizeCanvas(window.innerWidth, window.innerHeight);
+			cachedDims = null;
+		}, 400);
 	});
 	
 	// Enable audio on iOS with user interaction
@@ -483,7 +520,7 @@ function draw() {
 	
 	// Render reverse video
 	if (playingReverseVideo) {
-		if (reverseVideoLoaded && reverseVideo) {
+		if (reverseVideoLoaded && reverseVideo && reverseVideo.time() > 0) {
 			image(reverseVideo, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 			
 			if (reverseVideo.time() >= reverseVideo.duration()) {
@@ -495,6 +532,9 @@ function draw() {
 				buttonClicked = false;
 				waitingForButtonClick = true;
 			}
+		} else if (videoLoaded && video) {
+			// Fallback: show main video while reverseVideo loads
+			image(video, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
 		}
 		drawNoise(dims);
 		return;
@@ -517,11 +557,12 @@ function draw() {
 				showingUI = true;
 			}
 			drawNoise(reverseVideo2Dims);
-		} else if (video2Loaded && video2) {
-			// Keep showing video2 while reverseVideo2 loads
-			let video2Dims = getDisplayDimensions(video2.width, video2.height);
-			image(video2, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
-			drawNoise(video2Dims);
+		} else if (uiImages[currentUIState]) {
+			// Fallback: show UI while reverseVideo2 loads
+			let img = uiImages[currentUIState];
+			let uiDims = getDisplayDimensions(img.width, img.height);
+			image(img, uiDims.offsetX, uiDims.offsetY, uiDims.displayWidth, uiDims.displayHeight);
+			drawNoise(uiDims);
 		}
 		return;
 	}
@@ -551,17 +592,17 @@ function draw() {
 					video.pause();
 					isPlaying = false;
 				}
-			drawNoise(video5Dims);
-		} else if (video4Loaded && video4Frames[video4LastDisplayedFrame]) {
-			// Keep showing last video4 frame while video5 loads
-			let frameIndex = video4LastDisplayedFrame;
-			if (video4Frames[frameIndex] && video4Frames[frameIndex].width > 0) {
-				image(video4Frames[frameIndex], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-				drawNoise(dims);
 			}
+			drawNoise(video5Dims);
+		} else if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
+			// Fallback: show last video4 frame while video5 loads
+			image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
+			drawNoise(dims);
 		}
 		return;
 	}
+	
+	// Render video4 with back button (using frame sequence)
 	if (playingVideo4) {
 		if (video4Loaded) {
 			// Auto-play frames slowly if not scrolling and not interacting
@@ -704,9 +745,10 @@ function draw() {
 					video4LastAutoPlayTime = millis();
 					video4LastScrollTime = 0;
 				}
+			}
 			drawNoise(video3Dims);
 		} else if (uiImages[currentUIState]) {
-			// Keep showing UI image while video3 loads
+			// Fallback: show UI while video3 loads
 			let img = uiImages[currentUIState];
 			let uiDims = getDisplayDimensions(img.width, img.height);
 			image(img, uiDims.offsetX, uiDims.offsetY, uiDims.displayWidth, uiDims.displayHeight);
@@ -714,6 +756,8 @@ function draw() {
 		}
 		return;
 	}
+	
+	// Render video2 with back button
 	if (playingVideo2) {
 		lastVideo2Use = millis();
 		if (video2Loaded && video2 && video2.time() > 0) {
@@ -726,6 +770,11 @@ function draw() {
 				video2.pause();
 				video2.time(video2.duration());
 			}
+		} else if (uiImages[currentUIState]) {
+			// Fallback: show UI while video2 loads
+			let img = uiImages[currentUIState];
+			let video2Dims = getDisplayDimensions(img.width, img.height);
+			image(img, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
 		}
 		
 		// Draw back button when video2 is at the end (but not when reverseVideo2 is playing)
@@ -742,15 +791,9 @@ function draw() {
 			image(isHovered ? backUIImg : backUI0Img, btnX, btnY, btnSize, btnSize);
 		}
 		
-		if (video2Loaded && video2 && video2.time() > 0) {
+		if (video2Loaded && video2) {
 			let video2Dims = getDisplayDimensions(video2.width, video2.height);
 			drawNoise(video2Dims);
-		} else if (uiImages[currentUIState]) {
-			// Keep showing UI image while video2 loads
-			let img = uiImages[currentUIState];
-			let uiDims = getDisplayDimensions(img.width, img.height);
-			image(img, uiDims.offsetX, uiDims.offsetY, uiDims.displayWidth, uiDims.displayHeight);
-			drawNoise(uiDims);
 		}
 		return;
 	}
