@@ -68,7 +68,7 @@ let playingVideo5 = false;
 let isPlaying = false;
 
 // UI Navigation
-const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p112'];
+const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p1111'];
 let currentUIState = 'p0';
 let showingUI = false;
 
@@ -1354,8 +1354,8 @@ const navigationMap = {
 	'p2': { left: 'p0', up: 'p1', down: 'p3', right: 'VIDEO_3' },
 	'p3': { left: 'p0', up: 'p2', right: 'VIDEO_2' },
 	'p11': { left: 'p1', right: 'p111', link: 'https://github.com/godjdko/portfolio26' },
-	'p111': { left: 'p11', down: 'p112', link: 'https://github.com/godjdko/portfolio26' },
-	'p112': { left: 'p11', up: 'p111', link: 'https://github.com/godjdko/portfolio26' }
+	'p111': { left: 'p11', right: 'p1111',  link: 'https://github.com/godjdko/portfolio26' },
+	'p1111': { left: 'p111', link: 'https://github.com/godjdko/portfolio26' }
 };
 
 function navigateLeft() {
