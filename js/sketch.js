@@ -931,7 +931,13 @@ function draw() {
 		if (video2Loaded && video2 && video2.elt && video2.elt.readyState >= 3) {
 			// Calculate fresh dimensions for video2
 			let video2Dims = getDisplayDimensions(video2.width, video2.height);
+			
+			// Enable smoothing for video2 to preserve text legibility (especially last frame)
+			push();
+			try { smooth(); } catch(e) {}
 			image(video2, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
+			pop();
+			try { noSmooth(); } catch(e) {}
 			
 			// Ensure video is paused at end (iPad fix)
 			if (video2.time() >= video2.duration() - 0.1) {
