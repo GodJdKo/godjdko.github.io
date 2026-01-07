@@ -680,8 +680,9 @@ function draw() {
 				let isFastScrolling = frameDiff > 2;
 				
 				let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+				let preloadRadius = 0;
 				if (!isIOS) {
-					let preloadRadius = (width < 768) ? 8 : 15;
+					preloadRadius = (width < 768) ? 8 : 15;
 					// Prioritize forward loading (direction of auto-play)
 					for (let i = 0; i <= preloadRadius; i++) {
 						let preloadIndex = frameIndex + i;
