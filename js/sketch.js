@@ -29,6 +29,9 @@ let uiImages = {};
 let firstFrameImages = [];
 let noiseImages = [];
 
+// Main canvas reference (for styling)
+let mainCanvas = null;
+
 // Video elements and states
 let video, reverseVideo, video2, reverseVideo2, video3, video5;
 let videoLoaded = false;
@@ -40,7 +43,7 @@ let video5Loaded = false;
 
 // Video4 frames (image sequence)
 let video4Frames = [];
-let video4FrameCount = 278; // video4-000.jpg to video4-277.jpg
+let video4FrameCount = 278; // video4-000.avif to video4-277.avif
 let video4FramesLoaded = 0;
 let video4Loaded = false;
 
@@ -166,6 +169,7 @@ function preload() {
 					if (typeof resizeCanvas === 'function') {
 						resizeCanvas(w, h);
 						cachedDims = null;
+						if (typeof applyNoSmoothing === 'function') applyNoSmoothing();
 					}
 				}, 100);
 			}
@@ -180,12 +184,14 @@ function preload() {
 
 function setup() {
 	let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+	try { setAttributes('antialias', false); } catch (e) {}
 	
 	// Get actual viewport dimensions (Android Chrome fix)
 	let w = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
 	let h = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
 	
 	let canvas = createCanvas(w, h, WEBGL);
+	mainCanvas = canvas;
 	canvas.parent(document.body);
 	canvas.style('display', 'block');
 	canvas.style('position', 'fixed');
@@ -195,6 +201,7 @@ function setup() {
 	canvas.style('height', '100vh');
 	canvas.style('margin', '0');
 	canvas.style('padding', '0');
+	applyNoSmoothing();
 	
 	// Optimize for iOS devices
 	if (isIOS) {
@@ -222,6 +229,7 @@ function setup() {
 		if (Math.abs(width - currentW) > 10 || Math.abs(height - currentH) > 10) {
 			resizeCanvas(currentW, currentH);
 			cachedDims = null;
+			applyNoSmoothing();
 		}
 		
 		// Stop checking after 3 seconds
@@ -256,6 +264,7 @@ function setup() {
 			let h = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
 			resizeCanvas(w, h);
 			cachedDims = null;
+			applyNoSmoothing();
 		}, 400);
 	});
 
@@ -454,6 +463,7 @@ function downscaleToGraphicsIfNeeded(img, maxDim) {
 	let targetW = Math.max(1, Math.round(img.width * scale));
 	let targetH = Math.max(1, Math.round(img.height * scale));
 	let g = createGraphics(targetW, targetH);
+	try { g.noSmooth(); } catch (e) {}
 	g.image(img, 0, 0, targetW, targetH);
 	disposeVideo4Frame(img);
 	return g;
@@ -478,6 +488,49 @@ function triggerSafeResizeSoon() {
 			} catch (e) {}
 		}, 120);
 	});
+}
+
+function applyNoSmoothing() {
+	// p5-side (affects how p5 draws scaled images/textures)
+	try { noSmooth(); } catch (e) {}
+	try { forceWebGLNearestNeighbor(); } catch (e) {}
+
+	// CSS-side: prevent browser filtering when the canvas is scaled
+	const canvasEl = (mainCanvas && mainCanvas.elt) ? mainCanvas.elt : document.querySelector('canvas');
+	if (!canvasEl) return;
+
+	const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+	const target = isIOS ? 'crisp-edges' : 'pixelated';
+	if (canvasEl.dataset && canvasEl.dataset.noSmoothingApplied === '1' && canvasEl.dataset.imageRendering === target) {
+		return;
+	}
+	canvasEl.style.setProperty('image-rendering', target);
+	canvasEl.style.setProperty('-ms-interpolation-mode', 'nearest-neighbor');
+	if (canvasEl.dataset) {
+		canvasEl.dataset.noSmoothingApplied = '1';
+		canvasEl.dataset.imageRendering = target;
+	}
+}
+
+function forceWebGLNearestNeighbor() {
+	// In WEBGL, image() uses textures. WebGL defaults to LINEAR filtering,
+	// which makes UI images (like backUI.png) and frame sequences look smoothed.
+	const gl = (typeof drawingContext !== 'undefined') ? drawingContext : null;
+	if (!gl || typeof gl.texParameteri !== 'function') return;
+	if (gl.__copilotNearestPatched) return;
+
+	const originalTexParameteri = gl.texParameteri.bind(gl);
+	gl.texParameteri = (target, pname, param) => {
+		if (pname === gl.TEXTURE_MIN_FILTER || pname === gl.TEXTURE_MAG_FILTER) {
+			if (param === gl.LINEAR) param = gl.NEAREST;
+			else if (param === gl.LINEAR_MIPMAP_LINEAR || param === gl.LINEAR_MIPMAP_NEAREST || param === gl.NEAREST_MIPMAP_LINEAR) {
+				param = gl.NEAREST_MIPMAP_NEAREST;
+			}
+		}
+		return originalTexParameteri(target, pname, param);
+	};
+
+	gl.__copilotNearestPatched = true;
 }
 
 // Helper: Clean up unused resources to free memory
@@ -734,7 +787,7 @@ function draw() {
 					video4IOSLastLoadStart = now;
 					let frameNum = nf(desired, 3);
 					loadImage(
-						`img/video4/video4-${frameNum}.jpg`,
+						`img/video4/video4-${frameNum}.avif`,
 						(img) => {
 							// If user moved since request, drop to avoid piling up
 							if (video4IOSDesiredFrame !== desired) {
@@ -767,12 +820,12 @@ function draw() {
 						let preloadIndex = frameIndex + i;
 						if (preloadIndex >= 0 && preloadIndex < video4FrameCount && !video4Frames[preloadIndex]) {
 							let frameNum = nf(preloadIndex, 3);
-							video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.jpg`,
+							video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.avif`,
 								() => {},
 								() => {
 									setTimeout(() => {
 										if (!video4Frames[preloadIndex] || video4Frames[preloadIndex].width === 0) {
-											video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.jpg`);
+											video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.avif`);
 										}
 									}, 1000);
 								}
@@ -784,7 +837,7 @@ function draw() {
 						let preloadIndex = frameIndex - i;
 						if (preloadIndex >= 0 && preloadIndex < video4FrameCount && !video4Frames[preloadIndex]) {
 							let frameNum = nf(preloadIndex, 3);
-							video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.jpg`);
+							video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.avif`);
 						}
 					}
 					video4PrevFrame = frameIndex;
@@ -1819,6 +1872,7 @@ function windowResized() {
 	
 	// Clear dimension cache to force recalculation
 	cachedDims = null;
+	applyNoSmoothing();
 }
 
 
