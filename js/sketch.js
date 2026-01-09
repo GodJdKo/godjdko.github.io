@@ -67,8 +67,12 @@ let playingVideo4 = false;
 let playingVideo5 = false;
 let isPlaying = false;
 
+// Frame capture for smooth video transitions (prevent black flashes)
+let video2TransitionFrame = null;
+let reverseVideo2TransitionFrame = null;
+
 // UI Navigation
-const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p1111', 'p12'];
+const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p1111', 'p12',]; //'p121', 'p1211'];
 let currentUIState = 'p0';
 let showingUI = false;
 
@@ -766,6 +770,12 @@ function draw() {
 	if (playingReverseVideo2) {
 		lastReverseVideo2Use = millis();
 		if (reverseVideo2Loaded && reverseVideo2 && reverseVideo2.elt && reverseVideo2.elt.readyState >= 3) {
+			// Video is ready, clear the transition frame
+			if (reverseVideo2TransitionFrame) {
+				reverseVideo2TransitionFrame.remove();
+				reverseVideo2TransitionFrame = null;
+			}
+			
 			// Calculate fresh dimensions for reverseVideo2
 			let reverseVideo2Dims = getDisplayDimensions(reverseVideo2.width, reverseVideo2.height);
 			image(reverseVideo2, reverseVideo2Dims.offsetX, reverseVideo2Dims.offsetY, reverseVideo2Dims.displayWidth, reverseVideo2Dims.displayHeight);
@@ -780,18 +790,9 @@ function draw() {
 			}
 			drawNoise(reverseVideo2Dims);
 		}
-		// Fallback: keep showing frozen video2 (or UI) until reverseVideo2 is ready
-		else {
-			if (video2Loaded && video2 && video2.elt && video2.elt.readyState >= 2) {
-				let video2Dims = getDisplayDimensions(video2.width, video2.height);
-				image(video2, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
-				drawNoise(video2Dims);
-			} else if (uiImages['p3']) {
-				let img = uiImages['p3'];
-				let uiDims = getDisplayDimensions(img.width, img.height);
-				image(img, uiDims.offsetX, uiDims.offsetY, uiDims.displayWidth, uiDims.displayHeight);
-				drawNoise(uiDims);
-			}
+		// Fallback: show captured transition frame to prevent black flash
+		else if (reverseVideo2TransitionFrame) {
+			image(reverseVideo2TransitionFrame, 0, 0, width, height);
 		}
 		return;
 	}
@@ -1019,6 +1020,12 @@ function draw() {
 	if (playingVideo2) {
 		lastVideo2Use = millis();
 		if (video2Loaded && video2 && video2.elt && video2.elt.readyState >= 3) {
+			// Video is ready, clear the transition frame
+			if (video2TransitionFrame) {
+				video2TransitionFrame.remove();
+				video2TransitionFrame = null;
+			}
+			
 			// Calculate fresh dimensions for video2
 			let video2Dims = getDisplayDimensions(video2.width, video2.height);
 			
@@ -1048,12 +1055,9 @@ function draw() {
 				video2.time(video2.duration());
 			}
 		}
-		// Fallback: keep showing UI until video2 is ready
-		else if (showingUI && uiImages[currentUIState]) {
-			let img = uiImages[currentUIState];
-			let uiDims = getDisplayDimensions(img.width, img.height);
-			image(img, uiDims.offsetX, uiDims.offsetY, uiDims.displayWidth, uiDims.displayHeight);
-			drawNoise(uiDims);
+		// Fallback: show captured transition frame to prevent black flash
+		else if (video2TransitionFrame) {
+			image(video2TransitionFrame, 0, 0, width, height);
 		}
 		
 		// Draw back button when video2 is at the end (but not when reverseVideo2 is playing)
@@ -1404,7 +1408,9 @@ const navigationMap = {
 	'p11': { left: 'p1', down: 'p12', right: 'p111', link: 'https://github.com/godjdko/portfolio26' },
 	'p111': { left: 'p11', right: 'p1111',  link: 'https://github.com/godjdko/portfolio26' },
 	'p1111': { left: 'p111', link: 'https://github.com/godjdko/portfolio26' },
-	'p12': { left: 'p1',up: 'p11' }
+	'p12': { left: 'p1',up: 'p11' },
+	//'p121': { left: 'p12', right: 'p1211', link: 'https://en.wikipedia.org/wiki/Slow-scan_television#:~:text=Slow%2Dscan%20television%20(SSTV),reports%2C%20and%20amateur%20radio%20jargon' },
+	//'p1211': { left: 'p121', link: 'https://www.youtube.com/watch?v=Vs3sSkjodmA&list=PLV2G_btnPZBsOsBFaB-murpPUUTB9IFef' },
 };
 
 function navigateLeft() {
@@ -1440,6 +1446,17 @@ function navigateRight() {
 	
 	if (target === 'VIDEO_2') {
 		showingUI = false;
+		
+		// Capture current UI frame to prevent black flash during loading
+		if (uiImages[currentUIState]) {
+			let img = uiImages[currentUIState];
+			let captureDims = getDisplayDimensions(img.width, img.height);
+			let captureGraphics = createGraphics(width, height);
+			captureGraphics.background(0);
+			captureGraphics.image(img, captureDims.offsetX, captureDims.offsetY, captureDims.displayWidth, captureDims.displayHeight);
+			video2TransitionFrame = captureGraphics;
+		}
+		
 		if (!video2) {
 			video2 = setupVideo('img/video2.mp4', () => { video2Loaded = true; });
 			lastVideo2Use = millis();
@@ -1526,6 +1543,16 @@ function handleBackButtonClick(x, y) {
 		if (x >= btnX && x <= btnX + btnSize && y >= btnY && y <= btnY + btnSize) {
 			playSound(ticlicSound, 0.4);
 			document.body.style.cursor = 'default';
+			
+			// Capture current video2 frame to prevent black flash during loading
+			if (video2 && video2.elt && video2.elt.readyState >= 2) {
+				let video2Dims = getDisplayDimensions(video2.width, video2.height);
+				let captureGraphics = createGraphics(width, height);
+				captureGraphics.background(0);
+				captureGraphics.image(video2, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
+				reverseVideo2TransitionFrame = captureGraphics;
+			}
+			
 			if (reverseVideo2Loaded && reverseVideo2) {
 				reverseVideo2.time(0);
 				reverseVideo2.play();
@@ -2034,6 +2061,16 @@ function keyReleased() {
 		// Check if back button is available in video2 (frozen, and not playing reverseVideo2)
 		if (playingVideo2 && video2.time() >= video2.duration() && !playingReverseVideo2) {
 			playSound(ticlicSound, 0.4);
+			
+			// Capture current video2 frame to prevent black flash during loading
+			if (video2 && video2.elt && video2.elt.readyState >= 2) {
+				let video2Dims = getDisplayDimensions(video2.width, video2.height);
+				let captureGraphics = createGraphics(width, height);
+				captureGraphics.background(0);
+				captureGraphics.image(video2, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
+				reverseVideo2TransitionFrame = captureGraphics;
+			}
+			
 			if (reverseVideo2Loaded && reverseVideo2) {
 				reverseVideo2.time(0);
 				reverseVideo2.play();
