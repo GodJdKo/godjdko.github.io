@@ -56,23 +56,10 @@ let reverseVideo2Loaded = false;
 let video3Loaded = false;
 let video5Loaded = false;
 
-// Video4 frames (image sequence)
-let video4Frames = [];
-let video4FrameCount = 278; // video4-000.avif to video4-277.avif
-let video4FramesLoaded = 0;
-let video4Loaded = false;
-
-// Non-iOS video4 caching policy
-const VIDEO4_CACHE_RADIUS = 20; // keep at most 20 behind + 20 ahead (+ current)
-
-// iOS ultra-light loading for video4 (prevent Safari crashes)
-const VIDEO4_IOS_MAX_DIM = 768; // downscale long side to this max
-const VIDEO4_IOS_LOAD_COOLDOWN = 90; // ms between starting loads
-let video4IOSDesiredFrame = 0;
-let video4IOSInFlightIndex = -1;
-let video4IOSLastLoadStart = 0;
-let video4IOSCachedIndex = -1;
-let video4IOSCachedImage = null;
+// About Me section (replaces video4)
+let aboutMeBgImg = null;
+let aboutMeImg = null;
+let aboutMeLoaded = false;
 let playingReverseVideo = false;
 let playingVideo2 = false;
 let playingReverseVideo2 = false;
@@ -111,29 +98,42 @@ let lastArrowClickTime = 0; // Separate cooldown for arrow buttons
 const BUTTON_CLICK_COOLDOWN = 50; // 50ms between clicks
 
 
-// Video4 scroll control
-let video4ScrollPosition = 0;
-let video4CurrentFrame = 0;
-let video4PrevFrame = 0;
-let video4LastDisplayedFrame = 0;
+// About Me scroll control
+let aboutMeScrollY = 0; // Vertical scroll position of the about me text
+let aboutMeMaxScroll = 0; // Maximum scroll value (calculated from image height)
+let aboutMeIsUserInteracting = false; // Track if user is holding mouse/touch
+let aboutMeUpKeyHeld = false; // Track if up arrow is held
+let aboutMeDownKeyHeld = false; // Track if down arrow is held
+let aboutMeLastKeyScrubTime = 0;
+let aboutMeLastWheelTime = 0; // Throttle wheel events
+let aboutMeLastTouchMoveTime = 0; // Throttle touch move events
+let aboutMeLastScrollTime = 0;
+
+// Perspective rendering cache (avoid per-frame allocations)
+let aboutMeTextBuffer = null; // Reusable graphics buffer
+let aboutMeTextBufferSize = { w: 0, h: 0 }; // Track buffer dimensions
+let aboutMePerspectiveCache = null; // Cached slice calculations
+let aboutMePerspectiveCacheKey = ''; // Cache invalidation key
+const ABOUTME_SLICE_COUNT = 50; // Fewer slices = better performance (50 is visually identical to 100)
+let aboutMeLastInteractionEndTime = 0; // When user stopped interacting
+let aboutMeLastAutoPlayTime = 0;
 let lastTouchYForScroll = 0;
-let lastVideo4UpdateTime = 0;
-let video4ScrollVelocity = 0;
-let video4NeedsUpdate = false;
-let video4LastAutoPlayTime = 0;
-let video4LastScrollTime = 0;
-let video4IsUserInteracting = false; // Track if user is holding mouse/touch
-let video4UpKeyHeld = false; // Track if up arrow is held
-let video4DownKeyHeld = false; // Track if down arrow is held
-let video4LastKeyScrubTime = 0;
-let video4LastWheelTime = 0; // Throttle wheel events
-let video4LastTouchMoveTime = 0; // Throttle touch move events
-const video4ScrollSpeed = 0.02; // Frames per scroll unit
-let video4AutoPlaySpeed = 700; // ms per frame for auto-play (controls video4 playback speed, adjusted for iOS)
-const video4AutoPlayDelay = 400; // Wait 400ms after scroll before auto-playing
-const video4KeyScrubSpeed = 50; // ms per frame when holding arrow key (faster than auto-play)
-const video4WheelThrottle = 16; // Min 16ms between wheel updates (~60fps)
-const video4TouchMoveThrottle = 32; // Min 32ms between touch updates on iOS (~30fps)
+let aboutMeScrollVelocity = 0; // Current scroll velocity for smooth animation
+let aboutMeTargetVelocity = 0; // Target velocity to lerp towards
+const aboutMeScrollSpeed = 1; // Pixels per scroll unit
+const aboutMeAutoPlaySpeed = 1; // Pixels per second for auto-scroll
+const aboutMeAutoPlayDelay = 200; // Wait 200ms after scroll before auto-playing
+const aboutMeVelocitySmoothing = 0.15; // How fast velocity changes (0.1 = slow, 0.5 = fast)
+const aboutMeKeyScrollSpeed = 50; // ms between key scroll updates
+const aboutMeWheelThrottle = 16; // Min 16ms between wheel updates (~60fps)
+const aboutMeTouchMoveThrottle = 32; // Min 32ms between touch updates on iOS (~30fps)
+const aboutMeDesktopStartOffsetPixels = 1550; // Desktop only: pixels offset for text appearance (increase = appear sooner)
+
+// About Me perspective settings (Star Wars-style effect)
+const aboutMeTopWidthRatio = 0.3; // Width at top of screen (0.1 = very narrow, 1.0 = full width)
+const aboutMeBottomWidthRatio = 1.0; // Width at bottom of screen (usually 1.0)
+const aboutMeTopHeightRatio = 0.1; // Vertical compression at top (0.1 = very compressed, 1.0 = no compression)
+const aboutMeTextWidthRatio = 0.6; // Base text width as ratio of background (0.6 = 60% of bg width)
 
 // Resource management - track last use times for cleanup
 let lastVideo2Use = 0;
@@ -161,8 +161,11 @@ function preload() {
 	video3 = null;
 	video5 = null;
 	
-	// Video4 frames load on-demand for better performance
-	video4Loaded = true;
+	// Load About Me images
+	aboutMeBgImg = loadImage('img/UI/about-me-bg.jpg');
+	aboutMeImg = loadImage('img/UI/about-me.png', () => {
+		aboutMeLoaded = true;
+	});
 	
 	// Load sounds
 	clickSound = loadSound('sound/clic.mp3');
@@ -287,11 +290,8 @@ function setup() {
 	if (isIOS) {
 		// Reduce frame rate on iOS for stability
 		frameRate(20);
-		// Slower auto-play on iOS to reduce memory pressure
-		video4AutoPlaySpeed = 700;
 	} else {
 		frameRate(VIDEO_FRAMERATE);
-		video4AutoPlaySpeed = 500;
 	}
 	
 	if (video) video.time(0);
@@ -577,67 +577,6 @@ function drawNoise(dims) {
 	}
 }
 
-function disposeVideo4Frame(frame) {
-	if (!frame) return;
-	try {
-		if (frame.elt && frame.elt.removeAttribute) frame.elt.removeAttribute('src');
-	} catch (e) {}
-	try {
-		if (frame.remove) frame.remove();
-	} catch (e) {}
-	try {
-		if (frame.canvas) {
-			frame.canvas.width = 1;
-			frame.canvas.height = 1;
-		}
-	} catch (e) {}
-}
-
-function enforceVideo4CacheWindow(frameIndex, radius) {
-	// Hard cap the number of decoded frames kept in memory.
-	for (let i = 0; i < video4FrameCount; i++) {
-		if (!video4Frames[i]) continue;
-		if (Math.abs(i - frameIndex) > radius) {
-			disposeVideo4Frame(video4Frames[i]);
-			video4Frames[i] = null;
-			video4FrameLastUse[i] = 0;
-		}
-	}
-}
-
-function downscaleToGraphicsIfNeeded(img, maxDim) {
-	if (!img || !img.width || !img.height) return img;
-	let scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-	if (scale >= 1) return img;
-
-	let targetW = Math.max(1, Math.round(img.width * scale));
-	let targetH = Math.max(1, Math.round(img.height * scale));
-	let g = createGraphics(targetW, targetH);
-	try { g.noSmooth(); } catch (e) {}
-	g.image(img, 0, 0, targetW, targetH);
-	disposeVideo4Frame(img);
-	return g;
-}
-
-function resetVideo4IOSCache() {
-	video4IOSDesiredFrame = 0;
-	video4IOSInFlightIndex = -1;
-	video4IOSLastLoadStart = 0;
-	video4IOSCachedIndex = -1;
-	if (video4IOSCachedImage) {
-		disposeVideo4Frame(video4IOSCachedImage);
-		video4IOSCachedImage = null;
-	}
-	// Always clear the video4 frame cache (all platforms) to truly free memory.
-	for (let i = 0; i < video4FrameCount; i++) {
-		if (video4Frames[i]) {
-			disposeVideo4Frame(video4Frames[i]);
-			video4Frames[i] = null;
-		}
-		video4FrameLastUse[i] = 0;
-	}
-}
-
 function triggerSafeResizeSoon() {
 	requestAnimationFrame(() => {
 		setTimeout(() => {
@@ -750,13 +689,6 @@ function cleanupUnusedResources() {
 		video5 = null;
 		video5Loaded = false;
 	}
-	
-	// Clean up video4 frames: enforce strict window while video4 is active
-	if (playingVideo4) {
-		let frameIndex = floor(constrain(video4CurrentFrame, 0, video4FrameCount - 1));
-		// Enforce a strict window to keep memory bounded.
-		enforceVideo4CacheWindow(frameIndex, VIDEO4_CACHE_RADIUS);
-	}
 }
 
 function draw() {
@@ -845,7 +777,7 @@ function draw() {
 		return;
 	}
 	
-	// Render video5 (exit transition from video4)
+	// Render video5 (exit transition from aboutMe)
 	if (playingVideo5) {
 		lastVideo5Use = millis();
 		if (video5Loaded && video5 && video5.elt && video5.elt.readyState >= 3) {
@@ -873,163 +805,267 @@ function draw() {
 			}
 			drawNoise(video5Dims);
 		}
-		// Fallback: keep showing the last video4 frame while video5 loads
+		// Fallback: keep showing the aboutMe content while video5 loads
 		else {
-			let fallbackDrawn = false;
-			if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
-				image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-				fallbackDrawn = true;
-			}
-			if (fallbackDrawn) drawNoise(dims);
-		}
-		return;
-	}
-	
-	// Render video4 with back button (using frame sequence)
-	if (playingVideo4) {
-		if (video4Loaded) {
-			// Auto-play frames slowly if not scrolling and not interacting
-			let currentTime = millis();
-			let timeSinceScroll = currentTime - video4LastScrollTime;
-			
-			// Handle continuous key scrubbing when arrow keys are held
-			if (video4UpKeyHeld || video4DownKeyHeld) {
-				let timeSinceKeyScrub = currentTime - video4LastKeyScrubTime;
-				if (timeSinceKeyScrub >= video4KeyScrubSpeed) {
-					if (video4UpKeyHeld) {
-						video4CurrentFrame = constrain(video4CurrentFrame - 1, 0, video4FrameCount - 1);
-					} else if (video4DownKeyHeld) {
-						video4CurrentFrame = constrain(video4CurrentFrame + 1, 0, video4FrameCount - 1);
+			if (aboutMeLoaded && aboutMeBgImg && aboutMeImg) {
+				// Draw background (fixed)
+				let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+				image(aboutMeBgImg, bgDims.offsetX, bgDims.offsetY, bgDims.displayWidth, bgDims.displayHeight);
+				
+				// Draw scrolling text with Star Wars perspective (reuse cached buffer/calculations)
+				let textWidth = bgDims.displayWidth * aboutMeTextWidthRatio;
+				let textHeight = (aboutMeImg.height / aboutMeImg.width) * textWidth;
+				
+				let bufW = floor(bgDims.displayWidth);
+				let bufH = floor(bgDims.displayHeight);
+				if (!aboutMeTextBuffer || aboutMeTextBufferSize.w !== bufW || aboutMeTextBufferSize.h !== bufH) {
+					if (aboutMeTextBuffer) aboutMeTextBuffer.remove();
+					aboutMeTextBuffer = createGraphics(bufW, bufH);
+					aboutMeTextBufferSize = { w: bufW, h: bufH };
+				}
+				aboutMeTextBuffer.clear();
+				
+				let topWidth = textWidth * aboutMeTopWidthRatio;
+				let bottomWidth = textWidth * aboutMeBottomWidthRatio;
+				
+				// Use cached perspective calculations
+				let cacheKey = `${aboutMeTopHeightRatio}-${bufH}-${ABOUTME_SLICE_COUNT}`;
+				if (aboutMePerspectiveCacheKey !== cacheKey) {
+					let sliceHeights = new Float32Array(ABOUTME_SLICE_COUNT);
+					let sliceTs = new Float32Array(ABOUTME_SLICE_COUNT);
+					let totalHeight = 0;
+					
+					for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
+						let t = i / (ABOUTME_SLICE_COUNT - 1);
+						sliceTs[i] = t;
+						let heightRatio = aboutMeTopHeightRatio + (1.0 - aboutMeTopHeightRatio) * t;
+						sliceHeights[i] = heightRatio;
+						totalHeight += heightRatio;
 					}
-					video4LastKeyScrubTime = currentTime;
-					video4LastScrollTime = currentTime;
-				}
-			}
-			// Else if enough time has passed since last scroll and user is not interacting, auto-play
-			else if (!video4IsUserInteracting && timeSinceScroll > video4AutoPlayDelay) {
-				let timeSinceAutoPlay = currentTime - video4LastAutoPlayTime;
-				if (timeSinceAutoPlay >= video4AutoPlaySpeed) {
-					video4CurrentFrame = constrain(video4CurrentFrame + 1, 0, video4FrameCount - 1);
-					video4LastAutoPlayTime = currentTime;
-				}
-			}
-			
-			// Get current frame index
-			let frameIndex = floor(constrain(video4CurrentFrame, 0, video4FrameCount - 1));
-			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-			
-			if (isIOS) {
-				// iOS: use the same bounded cache window as other platforms, but
-				// keep only one in-flight decode and downscale frames.
-				let now = millis();
-				let canStart = (video4IOSInFlightIndex === -1) && (now - video4IOSLastLoadStart >= VIDEO4_IOS_LOAD_COOLDOWN);
-				
-				// Keep memory bounded aggressively while scrubbing.
-				if (frameIndex !== video4PrevFrame) {
-					enforceVideo4CacheWindow(frameIndex, VIDEO4_CACHE_RADIUS);
-					video4PrevFrame = frameIndex;
-				}
-				
-				video4IOSDesiredFrame = frameIndex;
-				let desired = frameIndex;
-				if (video4Frames[desired]) {
-					for (let d = 1; d <= VIDEO4_CACHE_RADIUS; d++) {
-						let a = frameIndex - d;
-						let b = frameIndex + d;
-						if (a >= 0 && !video4Frames[a] && a !== video4IOSInFlightIndex) { desired = a; break; }
-						if (b < video4FrameCount && !video4Frames[b] && b !== video4IOSInFlightIndex) { desired = b; break; }
+					
+					let scaleFactor = bufH / totalHeight;
+					for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
+						sliceHeights[i] *= scaleFactor;
 					}
+					
+					aboutMePerspectiveCache = { sliceHeights, sliceTs };
+					aboutMePerspectiveCacheKey = cacheKey;
 				}
 				
-				if (!video4Frames[desired] && canStart) {
-					video4IOSInFlightIndex = desired;
-					video4IOSLastLoadStart = now;
-					let frameNum = nf(desired, 3);
-					loadImage(
-						`img/video4/video4-${frameNum}.avif`,
-						(img) => {
-							let stored = downscaleToGraphicsIfNeeded(img, VIDEO4_IOS_MAX_DIM);
-							video4Frames[desired] = stored;
-							video4FrameLastUse[desired] = millis();
-							video4IOSInFlightIndex = -1;
-						},
-						() => {
-							if (video4IOSInFlightIndex === desired) video4IOSInFlightIndex = -1;
-						}
+				let { sliceHeights, sliceTs } = aboutMePerspectiveCache;
+				let sourceSliceHeight = bufH / ABOUTME_SLICE_COUNT;
+				let imgHeight = aboutMeImg.height;
+				let imgWidth = aboutMeImg.width;
+				let heightScale = imgHeight / textHeight;
+				let widthDiff = bottomWidth - topWidth;
+				let halfBufW = bufW / 2;
+				
+				aboutMeTextBuffer.push();
+				aboutMeTextBuffer.imageMode(CORNER);
+				
+				let canvasY = 0;
+				let sourceY = aboutMeScrollY;
+				
+				for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
+					let sliceHeight = sliceHeights[i];
+					
+					if (sourceY + sourceSliceHeight < 0 || sourceY > textHeight) {
+						canvasY += sliceHeight;
+						sourceY += sourceSliceHeight;
+						continue;
+					}
+					
+					let t = sliceTs[i];
+					let currentWidth = topWidth + widthDiff * t;
+					let currentX = halfBufW - currentWidth / 2;
+					let sourceSliceY_pixels = sourceY * heightScale;
+					let sourceSliceHeight_pixels = sourceSliceHeight * heightScale;
+					
+					aboutMeTextBuffer.image(
+						aboutMeImg,
+						currentX, canvasY, currentWidth, sliceHeight,
+						0, sourceSliceY_pixels, imgWidth, sourceSliceHeight_pixels
 					);
+					
+					canvasY += sliceHeight;
+					sourceY += sourceSliceHeight;
 				}
 				
-				// Draw current frame if ready; otherwise keep last displayed frame.
-				if (video4Frames[frameIndex] && video4Frames[frameIndex].width > 0) {
-					image(video4Frames[frameIndex], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-					video4LastDisplayedFrame = frameIndex;
-					video4FrameLastUse[frameIndex] = millis();
-				} else if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
-					image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-					video4FrameLastUse[video4LastDisplayedFrame] = millis();
-				}
-			} else {
-				// Non-iOS: prefetch and cache multiple frames
-				if (frameIndex !== video4PrevFrame) {
-					enforceVideo4CacheWindow(frameIndex, VIDEO4_CACHE_RADIUS);
-					let preloadRadius = VIDEO4_CACHE_RADIUS;
-					for (let i = 0; i <= preloadRadius; i++) {
-						let preloadIndex = frameIndex + i;
-						if (preloadIndex >= 0 && preloadIndex < video4FrameCount && !video4Frames[preloadIndex]) {
-							let frameNum = nf(preloadIndex, 3);
-							video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.avif`,
-								() => {},
-								() => {
-									setTimeout(() => {
-										if (!video4Frames[preloadIndex] || video4Frames[preloadIndex].width === 0) {
-											video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.avif`);
-										}
-									}, 1000);
-								}
-							);
-						}
-					}
-					let backRadius = Math.floor(preloadRadius / 2);
-					for (let i = 1; i <= backRadius; i++) {
-						let preloadIndex = frameIndex - i;
-						if (preloadIndex >= 0 && preloadIndex < video4FrameCount && !video4Frames[preloadIndex]) {
-							let frameNum = nf(preloadIndex, 3);
-							video4Frames[preloadIndex] = loadImage(`img/video4/video4-${frameNum}.avif`);
-						}
-					}
-					video4PrevFrame = frameIndex;
-				}
-				
-				if (video4Frames[frameIndex] && video4Frames[frameIndex].width > 0) {
-					image(video4Frames[frameIndex], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-					video4LastDisplayedFrame = frameIndex;
-					video4FrameLastUse[frameIndex] = millis();
-				} else if (video4Frames[video4LastDisplayedFrame] && video4Frames[video4LastDisplayedFrame].width > 0) {
-					image(video4Frames[video4LastDisplayedFrame], dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
-					video4FrameLastUse[video4LastDisplayedFrame] = millis();
-				}
+				aboutMeTextBuffer.pop();
+				image(aboutMeTextBuffer, bgDims.offsetX, bgDims.offsetY);
 			}
+			drawNoise(dims);
 		}
-		
-		// Draw back button while video4 is playing (but not when video5 is playing)
-		if (!playingVideo5 && backUI0Img && backUIImg) {
-			let smallestSide = min(width, height);
-			let btnSize = smallestSide / 5;
-			let btnX = width - btnSize - 30;
-			let btnY = height - btnSize - 90;
-			
-			let isHovered = mouseX >= btnX && mouseX <= btnX + btnSize &&
-			                mouseY >= btnY && mouseY <= btnY + btnSize;
-			
-			document.body.style.cursor = isHovered ? 'pointer' : 'default';
-			image(isHovered ? backUIImg : backUI0Img, btnX, btnY, btnSize, btnSize);
-		}
-		
-		drawNoise(dims);
 		return;
 	}
 	
-	// Render video3 (entrance transition to video4)
+	// Render About Me section with scrolling text
+	if (playingVideo4) {
+		if (aboutMeLoaded && aboutMeBgImg && aboutMeImg) {
+			let currentTime = millis();
+			let timeSinceScroll = currentTime - aboutMeLastScrollTime;
+			
+			// Draw background (fixed)
+			let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+			image(aboutMeBgImg, bgDims.offsetX, bgDims.offsetY, bgDims.displayWidth, bgDims.displayHeight);
+			
+			// Calculate text dimensions based on background
+			let textWidth = bgDims.displayWidth * aboutMeTextWidthRatio;
+			let textHeight = (aboutMeImg.height / aboutMeImg.width) * textWidth;
+			
+			// Calculate max scroll: from bottom of viewport to completely scrolled off top
+			// Start: -bgDims.displayHeight (text starts below screen)
+			// End: textHeight (text ends above screen)
+			aboutMeMaxScroll = textHeight;
+			
+			// Scale scroll speeds based on viewport size to maintain consistent reading speed
+			// Base reference: 1000px viewport height
+			let speedScale = bgDims.displayHeight / 1000;
+			let scaledScrollSpeed = aboutMeScrollSpeed * speedScale;
+			let scaledAutoPlaySpeed = aboutMeAutoPlaySpeed * speedScale;
+			
+			// Determine target velocity based on input
+			if (aboutMeUpKeyHeld || aboutMeDownKeyHeld) {
+				// Key held: set target velocity
+				if (aboutMeUpKeyHeld) {
+					aboutMeTargetVelocity = -scaledScrollSpeed * 3;
+				} else if (aboutMeDownKeyHeld) {
+					aboutMeTargetVelocity = scaledScrollSpeed * 3;
+				}
+				aboutMeLastScrollTime = currentTime;
+			}
+			// Auto-scroll if enough time has passed since user stopped interacting
+			else if (!aboutMeIsUserInteracting && (currentTime - aboutMeLastInteractionEndTime) > aboutMeAutoPlayDelay && aboutMeScrollY < aboutMeMaxScroll) {
+				aboutMeTargetVelocity = scaledAutoPlaySpeed;
+			}
+			else {
+				// No input: gradually stop
+				aboutMeTargetVelocity = 0;
+			}
+			
+			// Reset user interaction flag after idle time and track when it ends
+			if (aboutMeIsUserInteracting && timeSinceScroll > aboutMeAutoPlayDelay + 200) {
+				aboutMeIsUserInteracting = false;
+				aboutMeLastInteractionEndTime = currentTime; // Mark when user stopped interacting
+			}
+			
+			// Smooth velocity towards target with easing (use higher smoothing for keys for snappier response)
+			let smoothingFactor = (aboutMeUpKeyHeld || aboutMeDownKeyHeld) ? 0.25 : aboutMeVelocitySmoothing;
+			aboutMeScrollVelocity = lerp(aboutMeScrollVelocity, aboutMeTargetVelocity, smoothingFactor);
+			
+			// Apply velocity to scroll position
+			if (abs(aboutMeScrollVelocity) > 0.01) {
+				aboutMeScrollY = constrain(aboutMeScrollY + aboutMeScrollVelocity, -bgDims.displayHeight, aboutMeMaxScroll);
+			}
+			
+			// Draw scrolling text with Star Wars-style perspective distortion
+			// Reuse graphics buffer to avoid per-frame allocation
+			let bufW = floor(bgDims.displayWidth);
+			let bufH = floor(bgDims.displayHeight);
+			if (!aboutMeTextBuffer || aboutMeTextBufferSize.w !== bufW || aboutMeTextBufferSize.h !== bufH) {
+				if (aboutMeTextBuffer) aboutMeTextBuffer.remove();
+				aboutMeTextBuffer = createGraphics(bufW, bufH);
+				aboutMeTextBufferSize = { w: bufW, h: bufH };
+			}
+			aboutMeTextBuffer.clear(); // Clear instead of recreating
+			
+			// Calculate perspective widths using configured ratios
+			let topWidth = textWidth * aboutMeTopWidthRatio;
+			let bottomWidth = textWidth * aboutMeBottomWidthRatio;
+			
+			// Cache key for perspective calculations (invalidate when settings change)
+			let cacheKey = `${aboutMeTopHeightRatio}-${bufH}-${ABOUTME_SLICE_COUNT}`;
+			
+			// Pre-calculate slice heights only when parameters change
+			if (aboutMePerspectiveCacheKey !== cacheKey) {
+				let sliceHeights = new Float32Array(ABOUTME_SLICE_COUNT);
+				let sliceTs = new Float32Array(ABOUTME_SLICE_COUNT);
+				let totalHeight = 0;
+				
+				for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
+					let t = i / (ABOUTME_SLICE_COUNT - 1);
+					sliceTs[i] = t;
+					let heightRatio = aboutMeTopHeightRatio + (1.0 - aboutMeTopHeightRatio) * t; // Inline lerp
+					sliceHeights[i] = heightRatio;
+					totalHeight += heightRatio;
+				}
+				
+				let scaleFactor = bufH / totalHeight;
+				for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
+					sliceHeights[i] *= scaleFactor;
+				}
+				
+				aboutMePerspectiveCache = { sliceHeights, sliceTs };
+				aboutMePerspectiveCacheKey = cacheKey;
+			}
+			
+			let { sliceHeights, sliceTs } = aboutMePerspectiveCache;
+			let sourceSliceHeight = bufH / ABOUTME_SLICE_COUNT;
+			let imgHeight = aboutMeImg.height;
+			let imgWidth = aboutMeImg.width;
+			let heightScale = imgHeight / textHeight;
+			let widthDiff = bottomWidth - topWidth;
+			let halfBufW = bufW / 2;
+			
+			aboutMeTextBuffer.push();
+			aboutMeTextBuffer.imageMode(CORNER);
+			
+			let canvasY = 0;
+			let sourceY = aboutMeScrollY;
+			
+			for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
+				let sliceHeight = sliceHeights[i];
+				
+				// Skip if outside source image bounds
+				if (sourceY + sourceSliceHeight < 0 || sourceY > textHeight) {
+					canvasY += sliceHeight;
+					sourceY += sourceSliceHeight;
+					continue;
+				}
+				
+				let t = sliceTs[i];
+				let currentWidth = topWidth + widthDiff * t; // Inline lerp
+				let currentX = halfBufW - currentWidth / 2;
+				
+				// Convert to image pixel coordinates (inline calculations)
+				let sourceSliceY_pixels = sourceY * heightScale;
+				let sourceSliceHeight_pixels = sourceSliceHeight * heightScale;
+				
+				aboutMeTextBuffer.image(
+					aboutMeImg,
+					currentX, canvasY, currentWidth, sliceHeight,
+					0, sourceSliceY_pixels, imgWidth, sourceSliceHeight_pixels
+				);
+				
+				canvasY += sliceHeight;
+				sourceY += sourceSliceHeight;
+			}
+			
+			aboutMeTextBuffer.pop();
+			
+			// Draw buffer to main canvas
+			image(aboutMeTextBuffer, bgDims.offsetX, bgDims.offsetY);
+			
+			// Draw back button while aboutMe is playing (but not when video5 is playing)
+			if (!playingVideo5 && backUI0Img && backUIImg) {
+				let smallestSide = min(width, height);
+				let btnSize = smallestSide / 5;
+				let btnX = width - btnSize - 30;
+				let btnY = height - btnSize - 90;
+				
+				let isHovered = mouseX >= btnX && mouseX <= btnX + btnSize &&
+				                mouseY >= btnY && mouseY <= btnY + btnSize;
+				
+				document.body.style.cursor = isHovered ? 'pointer' : 'default';
+				image(isHovered ? backUIImg : backUI0Img, btnX, btnY, btnSize, btnSize);
+			}
+			
+			drawNoise(bgDims);
+		}
+		return;
+	}
+	
+	// Render video3 (entrance transition to aboutMe section)
 	if (playingVideo3) {
 		lastVideo3Use = millis();
 		if (video3Loaded && video3 && video3.elt && video3.elt.readyState >= 3) {
@@ -1041,15 +1077,16 @@ function draw() {
 				video3.pause();
 				video3.time(video3.duration());
 				playingVideo3 = false;
-				// Start video4 (frame-based, ready for scroll control)
-				if (video4Loaded) {
-					resetVideo4IOSCache();
+				// Start aboutMe section (ready for scroll control)
+				if (aboutMeLoaded) {
 					playingVideo4 = true;
-					video4CurrentFrame = 0;
-					video4PrevFrame = 0;
-					video4LastDisplayedFrame = 0;
-					video4LastAutoPlayTime = millis();
-					video4LastScrollTime = 0;
+					// Start with text just below viewport
+					// Use bgDims for sizing since everything is scaled to background
+					let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+					aboutMeScrollY = -bgDims.displayHeight;
+					aboutMeLastAutoPlayTime = millis();
+					aboutMeLastScrollTime = 0;
+					aboutMeLastInteractionEndTime = millis(); // Start auto-play timer from beginning
 				}
 			}
 			drawNoise(video3Dims);
@@ -1113,7 +1150,7 @@ function draw() {
 			let smallestSide = min(width, height);
 			let btnSize = smallestSide / 5;
 			let btnX = width - btnSize - 30;
-			let btnY = height - btnSize - 90;
+			let btnY = height - btnSize - 40;
 			
 			let isHovered = mouseX >= btnX && mouseX <= btnX + btnSize &&
 			                mouseY >= btnY && mouseY <= btnY + btnSize;
@@ -1172,7 +1209,7 @@ function draw() {
 			let smallestSide = min(width, height);
 			let btnSize = smallestSide / 5;
 			let btnX = 30; // Bottom left corner
-			let btnY = height - btnSize - 90;
+			let btnY = height - btnSize - 40;
 			
 			let isHovered = mouseX >= btnX && mouseX <= btnX + btnSize &&
 			                mouseY >= btnY && mouseY <= btnY + btnSize;
@@ -1701,8 +1738,6 @@ function handleBackButtonClick(x, y) {
 		if (x >= btnX && x <= btnX + btnSize && y >= btnY && y <= btnY + btnSize) {
 			playSound(ticlicSound, 0.4);
 			document.body.style.cursor = 'default';
-			// Free as much memory as possible before loading video5 (iOS stability)
-			resetVideo4IOSCache();
 			if (video5Loaded && video5) {
 				video5.time(0);
 				video5.play();
@@ -1886,34 +1921,49 @@ function mousePressed() {
 	}
 	
 	if (playingVideo4) {
-		video4IsUserInteracting = true;
-		video4LastScrollTime = millis();
+		aboutMeIsUserInteracting = true;
+		aboutMeLastScrollTime = millis();
 	}
 	handleButtonPressStart(mouseX, mouseY);
 }
 
 function mouseReleased() {
 	if (playingVideo4) {
-		video4IsUserInteracting = false;
-		video4LastScrollTime = millis();
+		aboutMeIsUserInteracting = false;
+		aboutMeLastScrollTime = millis();
 	}
 	handleButtonRelease(mouseX, mouseY);
 	handleArrowNavigation(mouseX, mouseY);
 }
 
 function mouseWheel(event) {
-	// Handle video4 scrolling with throttling
-	if (playingVideo4 && video4Loaded) {
+	// Handle aboutMe scrolling with throttling
+	if (playingVideo4 && aboutMeLoaded) {
 		let currentTime = millis();
-		if (currentTime - video4LastWheelTime < video4WheelThrottle) {
+		if (currentTime - aboutMeLastWheelTime < aboutMeWheelThrottle) {
 			return false; // Throttle updates
 		}
-		video4LastWheelTime = currentTime;
+		aboutMeLastWheelTime = currentTime;
 		
-		// Update frame position
-		video4CurrentFrame += event.delta * video4ScrollSpeed;
-		video4CurrentFrame = constrain(video4CurrentFrame, 0, video4FrameCount - 1);
-		video4LastScrollTime = currentTime; // Track scroll time to pause auto-play
+		// Calculate scroll bounds
+		let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+		let textWidth = bgDims.displayWidth * aboutMeTextWidthRatio;
+		let textHeight = (aboutMeImg.height / aboutMeImg.width) * textWidth;
+		
+		// Scale scroll speed based on viewport size (reference: 1000px)
+		let speedScale = bgDims.displayHeight / 1000;
+		let scaledScrollSpeed = aboutMeScrollSpeed * speedScale;
+		
+		// Add scroll velocity from wheel
+		let wheelVelocity = event.delta * scaledScrollSpeed;
+		aboutMeScrollY += wheelVelocity;
+		aboutMeScrollY = constrain(aboutMeScrollY, -bgDims.displayHeight, textHeight);
+		
+		// Set velocity to help smooth continuation (momentum)
+		aboutMeScrollVelocity = wheelVelocity * 0.5; // Reduce momentum to avoid jitter
+		aboutMeTargetVelocity = 0; // Stop auto-scroll
+		aboutMeIsUserInteracting = true; // Mark as user interaction
+		aboutMeLastScrollTime = currentTime; // Track scroll time to pause auto-play
 		return false; // Prevent page scroll
 	}
 }
@@ -1924,45 +1974,52 @@ function touchStarted() {
 	lastTouchY = touches[0].y;
 	lastTouchYForScroll = touches[0].y;
 	if (playingVideo4) {
-		video4IsUserInteracting = true;
-		video4LastScrollTime = millis();
+		aboutMeIsUserInteracting = true;
+		aboutMeLastScrollTime = millis();
 	}
 	handleButtonPressStart(lastTouchX, lastTouchY);
 	return false;
 }
 
 function touchMoved() {
-	// Handle video4 scrolling on mobile with throttling and speed limiting
-	if (playingVideo4 && video4Loaded && touches && touches.length > 0) {
+	// Handle aboutMe scrolling on mobile with throttling
+	if (playingVideo4 && aboutMeLoaded && touches && touches.length > 0) {
 		let currentTime = millis();
-		if (currentTime - video4LastTouchMoveTime < video4TouchMoveThrottle) {
+		if (currentTime - aboutMeLastTouchMoveTime < aboutMeTouchMoveThrottle) {
 			return false; // Throttle updates more aggressively on mobile
 		}
-		video4LastTouchMoveTime = currentTime;
+		aboutMeLastTouchMoveTime = currentTime;
 		
 		let deltaY = lastTouchYForScroll - touches[0].y;
 		
-		// Limit scroll speed on iOS to prevent crashes
-		let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-		let scrollMultiplier = isIOS ? 0.1 : 0.2; // Slower on iOS
-		let maxDelta = isIOS ? 10 : 20; // Cap maximum frame jump on iOS
+		// Calculate scroll bounds
+		let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+		let textWidth = bgDims.displayWidth * aboutMeTextWidthRatio;
+		let textHeight = (aboutMeImg.height / aboutMeImg.width) * textWidth;
 		
-		// Clamp delta to prevent huge jumps
-		let clampedDelta = constrain(deltaY * scrollMultiplier, -maxDelta, maxDelta);
+		// Scale scroll speed based on viewport size (reference: 1000px)
+		let speedScale = bgDims.displayHeight / 1000;
+		let scrollMultiplier = 1.5 * speedScale; // Adjust for touch sensitivity
 		
-		// Update frame position
-		video4CurrentFrame += clampedDelta;
-		video4CurrentFrame = constrain(video4CurrentFrame, 0, video4FrameCount - 1);
+		// Update scroll position
+		let touchVelocity = deltaY * scrollMultiplier;
+		aboutMeScrollY += touchVelocity;
+		aboutMeScrollY = constrain(aboutMeScrollY, -bgDims.displayHeight, textHeight);
+		
+		// Set velocity to help smooth continuation
+		aboutMeScrollVelocity = touchVelocity * 0.5; // Reduce momentum
+		aboutMeTargetVelocity = 0; // Stop auto-scroll
+		aboutMeIsUserInteracting = true; // Mark as user interaction
 		lastTouchYForScroll = touches[0].y;
-		video4LastScrollTime = currentTime; // Track scroll time to pause auto-play
+		aboutMeLastScrollTime = currentTime; // Track scroll time to pause auto-play
 		return false; // Prevent page scroll
 	}
 }
 
 function touchEnded() {
 	if (playingVideo4) {
-		video4IsUserInteracting = false;
-		video4LastScrollTime = millis();
+		aboutMeIsUserInteracting = false;
+		aboutMeLastScrollTime = millis();
 	}
 	handleButtonRelease(lastTouchX, lastTouchY);
 	handleArrowNavigation(lastTouchX, lastTouchY);
@@ -1990,26 +2047,34 @@ function keyPressed() {
 		}
 	}
 	
-	// Handle video4 frame scrubbing with up/down arrows
-	if (playingVideo4 && video4Loaded) {
+	// Handle aboutMe scrolling with up/down arrows
+	if (playingVideo4 && aboutMeLoaded) {
 		if (keyCode === UP_ARROW) {
-			if (!video4UpKeyHeld) {
+			if (!aboutMeUpKeyHeld) {
+				// Calculate scroll bounds
+				let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+				let textWidth = bgDims.displayWidth * aboutMeTextWidthRatio;
+				let textHeight = (aboutMeImg.height / aboutMeImg.width) * textWidth;
+				
 				// Initial press - move immediately
-				video4CurrentFrame -= 3;
-				video4CurrentFrame = constrain(video4CurrentFrame, 0, video4FrameCount - 1);
-				video4UpKeyHeld = true;
-				video4LastKeyScrubTime = millis();
-				video4LastScrollTime = millis();
+				aboutMeScrollY = constrain(aboutMeScrollY - aboutMeScrollSpeed * 10, -bgDims.displayHeight, textHeight);
+				aboutMeUpKeyHeld = true;
+				aboutMeLastKeyScrubTime = millis();
+				aboutMeLastScrollTime = millis();
 			}
 			return false;
 		} else if (keyCode === DOWN_ARROW) {
-			if (!video4DownKeyHeld) {
+			if (!aboutMeDownKeyHeld) {
+				// Calculate scroll bounds
+				let bgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+				let textWidth = bgDims.displayWidth * aboutMeTextWidthRatio;
+				let textHeight = (aboutMeImg.height / aboutMeImg.width) * textWidth;
+				
 				// Initial press - move immediately
-				video4CurrentFrame += 3;
-				video4CurrentFrame = constrain(video4CurrentFrame, 0, video4FrameCount - 1);
-				video4DownKeyHeld = true;
-				video4LastKeyScrubTime = millis();
-				video4LastScrollTime = millis();
+				aboutMeScrollY = constrain(aboutMeScrollY + aboutMeScrollSpeed * 10, -bgDims.displayHeight, textHeight);
+				aboutMeDownKeyHeld = true;
+				aboutMeLastKeyScrubTime = millis();
+				aboutMeLastScrollTime = millis();
 			}
 			return false;
 		}
@@ -2179,13 +2244,13 @@ function keyReleased() {
 		}
 	}
 	
-	// Clear video4 arrow key held states
-	if (playingVideo4 && video4Loaded) {
+	// Clear aboutMe arrow key held states
+	if (playingVideo4 && aboutMeLoaded) {
 		if (keyCode === UP_ARROW) {
-			video4UpKeyHeld = false;
+			aboutMeUpKeyHeld = false;
 			return false;
 		} else if (keyCode === DOWN_ARROW) {
-			video4DownKeyHeld = false;
+			aboutMeDownKeyHeld = false;
 			return false;
 		}
 	}
@@ -2215,7 +2280,6 @@ function keyReleased() {
 		// Check if back button is available in video4 (and not playing video5)
 		if (playingVideo4 && !playingVideo5) {
 			playSound(ticlicSound, 0.4);
-			resetVideo4IOSCache();
 			if (video5Loaded && video5) {
 				video5.time(0);
 				video5.play();
@@ -2253,12 +2317,27 @@ function windowResized() {
 	let w = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
 	let h = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
 	
+	// Capture old background height before resize (if in aboutMe section)
+	let oldBgHeight = null;
+	if (playingVideo4 && aboutMeLoaded && aboutMeBgImg) {
+		let oldBgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+		oldBgHeight = oldBgDims.displayHeight;
+	}
+	
 	// Constrain aspect ratio
 	let constrainedDims = constrainAspectRatio(w, h);
 	resizeCanvas(constrainedDims.width, constrainedDims.height);
 	
 	// Clear dimension cache to force recalculation
 	cachedDims = null;
+	
+	// Proportionally scale aboutMe scroll position to maintain relative position
+	if (oldBgHeight !== null && aboutMeBgImg) {
+		let newBgDims = getDisplayDimensions(aboutMeBgImg.width, aboutMeBgImg.height);
+		let scrollRatio = aboutMeScrollY / oldBgHeight;
+		aboutMeScrollY = scrollRatio * newBgDims.displayHeight;
+	}
+	
 	applyNoSmoothing();
 }
 
