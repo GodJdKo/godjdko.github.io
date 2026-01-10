@@ -24,11 +24,25 @@ function requestFullscreen() {
 }
 
 // Images
-let btnPressedImg, lightMaskImg, backUI0Img, backUIImg, extUI0Img, extUIImg;
+let btnPressedImg, lightMaskImg, backUI0Img, backUIImg, extUI0Img, extUIImg, btnavailImg;
 let uiImages = {};
 let firstFrameImages = [];
 let noiseImages = [];
 let isUsingWebGL = false; // Track which renderer mode we're using
+
+// Cheater animation (idle hint animation)
+let cheaterFrames = [];
+const CHEATER_FRAME_COUNT = 8;
+const CHEATER_FPS = 12; // Frames per second
+const CHEATER_INACTIVITY_DELAY = 5000; // 5 seconds of not clicking button before showing
+const CHEATER_OFFSET_X = -42; // X offset from button position
+const CHEATER_OFFSET_Y = -42; // Y offset from button position
+const CHEATER_SCALE = 3.0; // Scale multiplier (1.0 = same size as button area)
+let cheaterCurrentFrame = 0;
+let cheaterLastFrameChange = 0;
+let cheaterFrameInterval = 1000 / CHEATER_FPS;
+let lastButtonPressTime = 0;
+let showCheaterAnimation = false;
 
 // Main canvas reference (for styling)
 let mainCanvas = null;
@@ -72,7 +86,7 @@ let video2TransitionFrame = null;
 let reverseVideo2TransitionFrame = null;
 
 // UI Navigation
-const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p1111', 'p12',]; //'p121', 'p1211'];
+const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p112', 'p12','p121','p122','p13','p14','p15','p16','p17','p18','p19'];
 let currentUIState = 'p0';
 let showingUI = false;
 
@@ -114,10 +128,9 @@ let video4DownKeyHeld = false; // Track if down arrow is held
 let video4LastKeyScrubTime = 0;
 let video4LastWheelTime = 0; // Throttle wheel events
 let video4LastTouchMoveTime = 0; // Throttle touch move events
-const video4ScrollSpeed = 0.01; // Frames per scroll unit
-const video4MinFrameInterval = 50; // Min 50ms between updates
-let video4AutoPlaySpeed = 100; // ms per frame for auto-play (adjusted for iOS)
-const video4AutoPlayDelay = 400; // Wait 1s after scroll before auto-playing
+const video4ScrollSpeed = 0.02; // Frames per scroll unit
+let video4AutoPlaySpeed = 700; // ms per frame for auto-play (controls video4 playback speed, adjusted for iOS)
+const video4AutoPlayDelay = 400; // Wait 400ms after scroll before auto-playing
 const video4KeyScrubSpeed = 50; // ms per frame when holding arrow key (faster than auto-play)
 const video4WheelThrottle = 16; // Min 16ms between wheel updates (~60fps)
 const video4TouchMoveThrottle = 32; // Min 32ms between touch updates on iOS (~30fps)
@@ -165,6 +178,7 @@ function preload() {
 	backUIImg = loadImage('img/UI/backUI.png');
 	extUI0Img = loadImage('img/UI/extUI0.png');
 	extUIImg = loadImage('img/UI/extUI.png');
+	btnavailImg = loadImage('img/btnavail.png');
 	
 	// Load UI navigation images
 	for (let imgName of availableImages) {
@@ -194,6 +208,11 @@ function preload() {
 	// Load noise images
 	for (let i = 1; i <= 4; i++) {
 		noiseImages[i - 1] = loadImage(`img/noise/noise${i}.png`);
+	}
+	
+	// Load cheater animation frames
+	for (let i = 0; i < CHEATER_FRAME_COUNT; i++) {
+		cheaterFrames[i] = loadImage(`img/UI/cheater/cheater${i}.png`);
 	}
 }
 
@@ -269,13 +288,17 @@ function setup() {
 		// Reduce frame rate on iOS for stability
 		frameRate(20);
 		// Slower auto-play on iOS to reduce memory pressure
-		video4AutoPlaySpeed = 150;
+		video4AutoPlaySpeed = 700;
 	} else {
 		frameRate(VIDEO_FRAMERATE);
-		video4AutoPlaySpeed = 100;
+		video4AutoPlaySpeed = 500;
 	}
 	
 	if (video) video.time(0);
+	
+	// Initialize button press timer for cheater animation
+	lastButtonPressTime = millis();
+	showCheaterAnimation = false;
 	
 	// Auto-fix mobile stretching issues
 	let checkCount = 0;
@@ -335,7 +358,29 @@ function setup() {
 
 	// Extra resize correction hooks (helps rare stretched boot)
 	document.addEventListener('visibilitychange', () => {
-		if (!document.hidden) triggerSafeResizeSoon();
+		if (document.hidden) {
+			// Pause all videos when page loses focus
+			if (video && video.elt) video.pause();
+			if (reverseVideo && reverseVideo.elt) reverseVideo.pause();
+			if (video2 && video2.elt) video2.pause();
+			if (reverseVideo2 && reverseVideo2.elt) reverseVideo2.pause();
+			if (video3 && video3.elt) video3.pause();
+			if (video5 && video5.elt) video5.pause();
+			// Pause p5 draw loop
+			noLoop();
+		} else {
+			// Resume when page becomes visible again
+			triggerSafeResizeSoon();
+			// Resume p5 draw loop
+			loop();
+			// Resume playing videos only if they should be playing
+			if (isPlaying && video && video.elt) video.play();
+			if (playingReverseVideo && reverseVideo && reverseVideo.elt) reverseVideo.play();
+			if (playingVideo2 && video2 && video2.elt) video2.play();
+			if (playingReverseVideo2 && reverseVideo2 && reverseVideo2.elt) reverseVideo2.play();
+			if (playingVideo3 && video3 && video3.elt) video3.play();
+			if (playingVideo5 && video5 && video5.elt) video5.play();
+		}
 	});
 	const oneShotResize = () => {
 		triggerSafeResizeSoon();
@@ -756,6 +801,9 @@ function draw() {
 				video.time(0);
 				buttonClicked = false;
 				waitingForButtonClick = true;
+				// Reset cheater animation timer when returning to firstframe
+				lastButtonPressTime = millis();
+				showCheaterAnimation = false;
 			}
 		}
 		// Fallback: keep showing the last available main video frame (avoid black flash)
@@ -1151,6 +1199,47 @@ function draw() {
 		// Set cursor based on hover state
 		document.body.style.cursor = cursorOverUIButton ? 'pointer' : 'default';
 		
+		// Draw btnavail indicators for available navigation directions
+		if (btnavailImg) {
+			let navData = navigationMap[currentUIState];
+			if (navData) {
+				// Map directions to button indices: 0=down, 1=left, 2=up, 3=right
+				let directionMap = [
+					{ key: 'down', index: 0 },
+					{ key: 'left', index: 1 },
+					{ key: 'up', index: 2 },
+					{ key: 'right', index: 3 }
+				];
+				
+				// Apply brightening effect
+				if (isUsingWebGL) {
+					// In WEBGL: use custom blend function for additive blending (lighten effect)
+					drawingContext.blendFunc(drawingContext.SRC_ALPHA, drawingContext.ONE);
+				} else {
+					// In P2D: use ADD blend mode
+					blendMode(ADD);
+				}
+				
+				for (let dir of directionMap) {
+					if (navData[dir.key]) {
+						let btn = squareButtons[dir.index];
+						let btnX = uiDims.offsetX + (btn.x / videoOriginalWidth) * uiDims.displayWidth;
+						let btnY = uiDims.offsetY + (btn.y / videoOriginalHeight) * uiDims.displayHeight;
+						let btnSize = btn.size * scaleFactor;
+						image(btnavailImg, btnX, btnY, btnSize, btnSize);
+					}
+				}
+				
+				// Reset blend mode
+				if (isUsingWebGL) {
+					// Reset to default WEBGL blend function
+					drawingContext.blendFunc(drawingContext.SRC_ALPHA, drawingContext.ONE_MINUS_SRC_ALPHA);
+				} else {
+					blendMode(BLEND);
+				}
+			}
+		}
+		
 		// Render arrow button press effects
 		renderArrowButtonEffects(uiDims);
 		
@@ -1188,6 +1277,30 @@ function draw() {
 		
 		if (buttonPressed && btnPressedImg) {
 			image(btnPressedImg, dims.offsetX, dims.offsetY, dims.displayWidth, dims.displayHeight);
+		}
+		
+		// Check for inactivity and show cheater animation
+		if (now - lastButtonPressTime >= CHEATER_INACTIVITY_DELAY) {
+			showCheaterAnimation = true;
+		}
+		
+		// Render cheater animation (only shows after inactivity, stops when button clicked)
+		if (showCheaterAnimation && !buttonPressed) {
+			if (now - cheaterLastFrameChange >= cheaterFrameInterval) {
+				cheaterCurrentFrame = (cheaterCurrentFrame + 1) % CHEATER_FRAME_COUNT;
+				cheaterLastFrameChange = now;
+			}
+			
+			if (cheaterFrames[cheaterCurrentFrame]) {
+				let bounds = getButtonBounds();
+				// Scale offsets proportionally to match video scaling
+				let scaleFactor = dims.displayWidth / videoOriginalWidth;
+				let cheaterWidth = bounds.w * CHEATER_SCALE;
+				let cheaterHeight = bounds.h * CHEATER_SCALE;
+				let cheaterX = bounds.x + (CHEATER_OFFSET_X * scaleFactor);
+				let cheaterY = bounds.y + (CHEATER_OFFSET_Y * scaleFactor);
+				image(cheaterFrames[cheaterCurrentFrame], cheaterX, cheaterY, cheaterWidth, cheaterHeight);
+			}
 		}
 		
 		let bounds = getButtonBounds();
@@ -1406,12 +1519,27 @@ const navigationMap = {
 	'p2': { left: 'p0', up: 'p1', down: 'p3', right: 'VIDEO_3' },
 	'p3': { left: 'p0', up: 'p2', right: 'VIDEO_2' },
 	'p11': { left: 'p1', down: 'p12', right: 'p111', link: 'https://github.com/godjdko/portfolio26' },
-	'p111': { left: 'p11', right: 'p1111',  link: 'https://github.com/godjdko/portfolio26' },
-	'p1111': { left: 'p111', link: 'https://github.com/godjdko/portfolio26' },
-	'p12': { left: 'p1',up: 'p11' },
-	//'p121': { left: 'p12', right: 'p1211', link: 'https://en.wikipedia.org/wiki/Slow-scan_television#:~:text=Slow%2Dscan%20television%20(SSTV),reports%2C%20and%20amateur%20radio%20jargon' },
-	//'p1211': { left: 'p121', link: 'https://www.youtube.com/watch?v=Vs3sSkjodmA&list=PLV2G_btnPZBsOsBFaB-murpPUUTB9IFef' },
-};
+	'p111': { left: 'p11', right: 'p112',  link: 'https://github.com/godjdko/portfolio26' },
+	'p112': { left: 'p111', link: 'https://github.com/godjdko/portfolio26' },
+	'p12': { left: 'p1',up: 'p11', down: 'p13', right: 'p121'},
+	'p121': { left: 'p12', right: 'p122', link: 'https://en.wikipedia.org/wiki/Slow-scan_television#:~:text=Slow%2Dscan%20television%20(SSTV),reports%2C%20and%20amateur%20radio%20jargon' },
+	'p122': { left: 'p121', link: 'https://www.youtube.com/watch?v=Vs3sSkjodmA&list=PLV2G_btnPZBsOsBFaB-murpPUUTB9IFef' },
+	'p13': { left: 'p1', up: 'p12', down: 'p14',link: 'https://youtu.be/J8ULWEFgQmM?si=fgZuFVlBXw3WUzIR' },
+	'p14': { left: 'p1', up: 'p13', down: 'p15'},
+	'p15': { left: 'p1', up: 'p14', down: 'p16', link:'https://on.soundcloud.com/ckvNclWOCaTuxfjfnP'},
+	'p16': { left: 'p1', up: 'p15', down: 'p17', link:'https://enzocetera.com/p5soundtests' },
+	'p17': { left: 'p1', up: 'p16', down: 'p18', link:'https://youtu.be/wUkiri7TbtA?si=6wfRIt5k7Uo9SQ9R'},
+	'p18': { left: 'p1', up: 'p17' , down: 'p19', link:'https://1drv.ms/f/c/8323e91841700ff4/IgDLr6ARuH8oSbIUXprhHjBeAQUrmS7qpjL-8xaTE3yC--M?e=KHroDI'},
+	'p19': { left: 'p1', up: 'p18', link:'https://youtu.be/FpWlpK8DhlE?si=B0D7SLIsgjkdn3PA'},
+
+
+	};
+
+
+
+
+
+
 
 function navigateLeft() {
 	const target = navigationMap[currentUIState]?.left;
@@ -1613,6 +1741,9 @@ function handleButtonPressStart(x, y) {
 	
 	if (canPressButton && isInsideButton(x, y)) {
 		playClickSound();
+		// Reset cheater animation timer when button is pressed
+		lastButtonPressTime = currentTime;
+		showCheaterAnimation = false;
 		buttonPressed = true;
 		lastButtonClickTime = currentTime;
 	}
@@ -1669,6 +1800,9 @@ function handleButtonRelease(x, y) {
 		isPlaying = true;
 		waitingForButtonClick = false;
 		buttonPressed = false;
+		// Reset cheater animation for when we return to firstframe
+		lastButtonPressTime = currentTime;
+		showCheaterAnimation = false;
 		return;
 	}
 	
