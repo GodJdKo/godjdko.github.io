@@ -1016,24 +1016,41 @@ function draw() {
 			for (let i = 0; i < ABOUTME_SLICE_COUNT; i++) {
 				let sliceHeight = sliceHeights[i];
 				
-				// Skip if outside source image bounds
+				// Skip if completely outside source image bounds
 				if (sourceY + sourceSliceHeight < 0 || sourceY > textHeight) {
 					canvasY += sliceHeight;
 					sourceY += sourceSliceHeight;
 					continue;
 				}
 				
+				// Clip partial slices at top/bottom to avoid stretching
+				let clippedSourceY = max(0, sourceY);
+				let clippedSourceEndY = min(textHeight, sourceY + sourceSliceHeight);
+				let clippedSourceHeight = clippedSourceEndY - clippedSourceY;
+				
+				// Skip if no visible content after clipping
+				if (clippedSourceHeight <= 0) {
+					canvasY += sliceHeight;
+					sourceY += sourceSliceHeight;
+					continue;
+				}
+				
+				// Calculate proportional destination height (avoid stretching)
+				let sourceRatio = clippedSourceHeight / sourceSliceHeight;
+				let clippedSliceHeight = sliceHeight * sourceRatio;
+				let canvasYOffset = (sourceY < 0) ? sliceHeight * (-sourceY / sourceSliceHeight) : 0;
+				
 				let t = sliceTs[i];
 				let currentWidth = topWidth + widthDiff * t; // Inline lerp
 				let currentX = halfBufW - currentWidth / 2;
 				
 				// Convert to image pixel coordinates (inline calculations)
-				let sourceSliceY_pixels = sourceY * heightScale;
-				let sourceSliceHeight_pixels = sourceSliceHeight * heightScale;
+				let sourceSliceY_pixels = clippedSourceY * heightScale;
+				let sourceSliceHeight_pixels = clippedSourceHeight * heightScale;
 				
 				aboutMeTextBuffer.image(
 					aboutMeImg,
-					currentX, canvasY, currentWidth, sliceHeight,
+					currentX, canvasY + canvasYOffset, currentWidth, clippedSliceHeight,
 					0, sourceSliceY_pixels, imgWidth, sourceSliceHeight_pixels
 				);
 				
