@@ -372,7 +372,7 @@ function setup() {
 			// Resume when page becomes visible again
 			triggerSafeResizeSoon();
 			// Ensure audio context is healthy after returning to page
-			ensureAudioReady({ allowReload: true });
+			ensureAudioReady();
 			// Resume p5 draw loop
 			loop();
 			// Resume playing videos only if they should be playing
@@ -409,7 +409,7 @@ function setup() {
 	// Also ensure audio starts/resumes on first interaction (Android fix)
 	const ensureAudioOnInteract = () => {
 		try { if (typeof userStartAudio === 'function') userStartAudio(); } catch (e) {}
-		ensureAudioReady({ allowReload: false });
+		ensureAudioReady();
 		window.removeEventListener('touchstart', ensureAudioOnInteract);
 		window.removeEventListener('mousedown', ensureAudioOnInteract);
 		window.removeEventListener('keydown', ensureAudioOnInteract);
@@ -422,9 +422,9 @@ function setup() {
 	window.addEventListener('pageshow', (evt) => {
 		// If restored from bfcache, contexts may be suspended or misconfigured
 		if (evt && evt.persisted) {
-			ensureAudioReady({ allowReload: true });
+			ensureAudioReady();
 		} else {
-			ensureAudioReady({ allowReload: true });
+			ensureAudioReady();
 		}
 	}, { passive: true });
 }
@@ -1559,8 +1559,8 @@ function playClickSound() {
 
 // Helper: Play sound with volume control
 function playSound(sound, volume = 0.2, rate = 1) {
-	// Make sure audio context is running before playback (no reload during interaction)
-	ensureAudioReady({ allowReload: false });
+	// Make sure audio context is running and healthy before playback
+	ensureAudioReady();
 	if (sound && sound.isLoaded()) {
 		// Stop and reset to prevent overlap/crackling
 		if (sound.isPlaying()) {
@@ -1596,8 +1596,7 @@ function getP5AudioContext() {
 	return null;
 }
 
-function ensureAudioReady(options = {}) {
-	const allowReload = !!options.allowReload;
+function ensureAudioReady() {
 	const ctx = getP5AudioContext();
 	// Attempt to start audio if not yet started
 	try { if (typeof userStartAudio === 'function') userStartAudio(); } catch (e) {}
@@ -1608,7 +1607,7 @@ function ensureAudioReady(options = {}) {
 		// Detect Android sample rate glitch (bitcrushed/low-quality sound)
 		const isAndroid = /Android/i.test(navigator.userAgent);
 		const sr = ctx.sampleRate || 0;
-		if (allowReload && isAndroid && sr && sr < 32000) {
+		if (isAndroid && sr && sr < 32000) {
 			// One-time soft reload to recreate a clean AudioContext
 			const key = 'audioFixReloaded';
 			if (!sessionStorage.getItem(key)) {
