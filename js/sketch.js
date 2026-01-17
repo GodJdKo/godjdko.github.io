@@ -73,7 +73,7 @@ let video2TransitionFrame = null;
 let reverseVideo2TransitionFrame = null;
 
 // UI Navigation
-const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p112', 'p12','p121','p122','p13','p14','p15','p16','p17','p18','p19'];
+const availableImages = ['p0', 'p1', 'p2', 'p3', 'p11', 'p111', 'p112', 'p12','p121','p122','p13','p131','p132','p133','p14','p141','p142','p15','p151','p152','p16','p161','p162','p17','p171','p18','p181','p182','p183','p19','p191','p192'];
 let currentUIState = 'p0';
 let showingUI = false;
 
@@ -1568,24 +1568,40 @@ function stopSound(sound) {
 // Use 'VIDEO_3' or 'VIDEO_2' for special video transitions
 // Add 'link' property to show external link button (opens in new tab)
 const navigationMap = {
-	'p0': { right: 'p1' },
-	'p1': { left: 'p0', down: 'p2', right: 'p11' },
-	'p2': { left: 'p0', up: 'p1', down: 'p3', right: 'VIDEO_3' },
-	'p3': { left: 'p0', up: 'p2', right: 'VIDEO_2' },
-	'p11': { left: 'p1', down: 'p12', right: 'p111', link: 'https://github.com/godjdko/portfolio26' },
-	'p111': { left: 'p11', right: 'p112',  link: 'https://github.com/godjdko/portfolio26' },
-	'p112': { left: 'p111', link: 'https://github.com/godjdko/portfolio26' },
-	'p12': { left: 'p1',up: 'p11', down: 'p13', right: 'p121'},
-	'p121': { left: 'p12', right: 'p122', link: 'https://en.wikipedia.org/wiki/Slow-scan_television#:~:text=Slow%2Dscan%20television%20(SSTV),reports%2C%20and%20amateur%20radio%20jargon' },
-	'p122': { left: 'p121', link: 'https://www.youtube.com/watch?v=Vs3sSkjodmA&list=PLV2G_btnPZBsOsBFaB-murpPUUTB9IFef' },
-	'p13': { left: 'p1', up: 'p12', down: 'p14',link: 'https://youtu.be/J8ULWEFgQmM?si=fgZuFVlBXw3WUzIR' },
-	'p14': { left: 'p1', up: 'p13', down: 'p15'},
-	'p15': { left: 'p1', up: 'p14', down: 'p16', link:'https://on.soundcloud.com/ckvNclWOCaTuxfjfnP'},
-	'p16': { left: 'p1', up: 'p15', down: 'p17', link:'https://enzocetera.com/p5soundtests' },
-	'p17': { left: 'p1', up: 'p16', down: 'p18', link:'https://youtu.be/wUkiri7TbtA?si=6wfRIt5k7Uo9SQ9R'},
-	'p18': { left: 'p1', up: 'p17' , down: 'p19', link:'https://1drv.ms/f/c/8323e91841700ff4/IgDLr6ARuH8oSbIUXprhHjBeAQUrmS7qpjL-8xaTE3yC--M?e=KHroDI'},
-	'p19': { left: 'p1', up: 'p18', link:'https://youtu.be/FpWlpK8DhlE?si=B0D7SLIsgjkdn3PA'},
+'p0': { right: 'p1' },
+'p1': { left: 'p0', down: 'p2', right: 'p11' },
 
+	'p11': { left: 'p1', down: 'p12', right: 'p111'},
+		'p111': { left: 'p11', right: 'p112',  link: 'https://github.com/godjdko/portfolio26' },
+		'p112': { left: 'p111', link: 'https://github.com/godjdko/portfolio26' },
+	'p12': { left: 'p1',up: 'p11', down: 'p13', right: 'p121'},
+		'p121': { left: 'p12', right: 'p122', link: 'https://en.wikipedia.org/wiki/Slow-scan_television#:~:text=Slow%2Dscan%20television%20(SSTV),reports%2C%20and%20amateur%20radio%20jargon' },
+		'p122': { left: 'p121', link: 'https://www.youtube.com/watch?v=Vs3sSkjodmA&list=PLV2G_btnPZBsOsBFaB-murpPUUTB9IFef' },
+	'p13': { left: 'p1', up: 'p12', down: 'p14', right: 'p131' },
+		'p131': { left: 'p13', right: 'p132', link: 'https://youtu.be/J8ULWEFgQmM?si=fgZuFVlBXw3WUzIR' },
+		'p132': { left: 'p131', right: 'p133', link:  'https://youtu.be/J8ULWEFgQmM?si=fgZuFVlBXw3WUzIR' },
+		'p133': { left: 'p132', link:  'https://youtu.be/J8ULWEFgQmM?si=fgZuFVlBXw3WUzIR' },
+	'p14': { left: 'p1', up: 'p13', down: 'p15', right: 'p141'},
+		'p141': { left: 'p14', right: 'p142'},
+		'p142': { left: 'p141'},
+	'p15': { left: 'p1', up: 'p14', down: 'p16', right: 'p151'},
+		'p151':{ left:'p15', right:'p152',link:'https://on.soundcloud.com/ckvNclWOCaTuxfjfnP'},
+		'p152':{ left:'p151',link:'https://on.soundcloud.com/ckvNclWOCaTuxfjfnP'},
+	'p16': { left: 'p1', up: 'p15', down: 'p17', right: 'p161'},
+		'p161': { left: 'p16', right: 'p162', link:'https://enzocetera.com/detruirepourconstruire/' },
+		'p162': { left: 'p161', link:'https://enzocetera.com/p5soundtests/' },
+	'p17': { left: 'p1', up: 'p16', down: 'p18', right: 'p171'},
+		'p171': { left: 'p17', link:'https://youtu.be/wUkiri7TbtA?si=6wfRIt5k7Uo9SQ9R'},
+	'p18': { left: 'p1', up: 'p17' , down: 'p19', right: 'p181'},
+		'p181' : { left: 'p18', right: 'p182', link:'https://1drv.ms/f/c/8323e91841700ff4/IgDLr6ARuH8oSbIUXprhHjBeAQUrmS7qpjL-8xaTE3yC--M?e=KHroDI' },
+		'p182' : { left: 'p181', right: 'p183', link:'https://1drv.ms/f/c/8323e91841700ff4/IgDLr6ARuH8oSbIUXprhHjBeAQUrmS7qpjL-8xaTE3yC--M?e=KHroDI' },
+		'p183' : { left: 'p182', link:'https://1drv.ms/f/c/8323e91841700ff4/IgDLr6ARuH8oSbIUXprhHjBeAQUrmS7qpjL-8xaTE3yC--M?e=KHroDI' },
+	'p19': { left: 'p1', up: 'p18', right: 'p191'},
+		'p191': { left: 'p19', right: 'p192', link:'https://youtu.be/FpWlpK8DhlE?si=B0D7SLIsgjkdn3PA' },
+		'p192': { left: 'p191',  link:'https://youtu.be/FpWlpK8DhlE?si=B0D7SLIsgjkdn3PA' },
+
+'p2': { left: 'p0', up: 'p1', down: 'p3', right: 'VIDEO_3' },
+'p3': { left: 'p0', up: 'p2', right: 'VIDEO_2' },
 
 	};
 
