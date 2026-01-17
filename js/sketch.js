@@ -427,6 +427,12 @@ function setup() {
 			ensureAudioReady();
 		}
 	}, { passive: true });
+
+	// Reinit sound engine when window regains focus (fixes notification panel issue)
+	window.addEventListener('focus', () => {
+		console.log('Window focused - reinitializing sound engine');
+		reinitSoundEngine();
+	}, { passive: true });
 }
 
 
@@ -1618,6 +1624,37 @@ function ensureAudioReady() {
 				console.warn('Audio sampleRate still low after reload (', sr, '). Skipping further reloads.');
 			}
 		}
+	}
+}
+
+// Sound engine reinit: reload all sounds when window regains focus
+function reinitSoundEngine() {
+	try {
+		const ctx = getP5AudioContext();
+		if (!ctx) {
+			console.warn('Sound context not available, skipping reinit');
+			return;
+		}
+		
+		// Try to resume if suspended
+		if (ctx.state !== 'running') {
+			console.log('Sound context state:', ctx.state, '- attempting resume');
+			ctx.resume && ctx.resume();
+		}
+		
+		// Reload all sound files to get fresh buffers
+		clickSound = loadSound('sound/clic.mp3');
+		jingleSound = loadSound('sound/jingle.mp3');
+		antijingleSound = loadSound('sound/antijingle.mp3');
+		clacSound = loadSound('sound/clac.mp3');
+		ticlicSound = loadSound('sound/ticlic.mp3');
+		
+		// Trigger user audio start to ensure unlocked state
+		try { if (typeof userStartAudio === 'function') userStartAudio(); } catch (e) {}
+		
+		console.log('Sound engine reinitialized: all sounds reloaded on focus');
+	} catch (err) {
+		console.error('Error reinitializing sound engine:', err);
 	}
 }
 
