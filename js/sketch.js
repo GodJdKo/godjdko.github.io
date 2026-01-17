@@ -433,6 +433,16 @@ function setup() {
 		console.log('Window focused - reinitializing sound engine');
 		reinitSoundEngine();
 	}, { passive: true });
+
+	// Remove loading overlay once setup is complete
+	const loadingOverlay = document.getElementById('loadingOverlay');
+	if (loadingOverlay) {
+		loadingOverlay.style.opacity = '0';
+		loadingOverlay.style.transition = 'opacity 0.6s ease-out';
+		setTimeout(() => {
+			loadingOverlay.style.display = 'none';
+		}, 600);
+	}
 }
 
 
@@ -1158,6 +1168,9 @@ function draw() {
 			// Check if video is frozen at the end
 			let isVideoFrozen = video2.time() >= video2.duration() - 0.1;
 
+			// Detect iOS for rendering optimization
+			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
 			// Capture last frame before clearing transition frame (prevents black screen at end)
 			if (isVideoFrozen && !video2TransitionFrame) {
 				let captureGraphics = createGraphics(width, height);
@@ -1342,7 +1355,29 @@ function draw() {
 		fill(255);
 		textAlign(CENTER, CENTER);
 		textSize(16);
-		text("Loading...", 0, 0); // WebGL center
+		
+		// Animated loading spinner
+		let spinnerRadius = 40;
+		let spinnerX = 0;
+		let spinnerY = -80;
+		let rotation = (frameCount * 3) % 360;
+		
+		// Draw rotating circle spinner
+		push();
+		translate(spinnerX, spinnerY);
+		rotate(radians(rotation));
+		noFill();
+		stroke(255);
+		strokeWeight(3);
+		arc(0, 0, spinnerRadius, spinnerRadius, 0, PI + HALF_PI, OPEN);
+		pop();
+		
+		// Loading dots animation
+		text("Loading", 0, 20);
+		let dotCount = (frameCount / 10) % 4;
+		let dots = ".".repeat(Math.floor(dotCount));
+		text(dots, 100, 20);
+		
 		pop();
 		drawNoise(dims);
 		pop(); // Close main transformation
