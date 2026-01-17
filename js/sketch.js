@@ -371,6 +371,8 @@ function setup() {
 		} else {
 			// Resume when page becomes visible again
 			triggerSafeResizeSoon();
+			// Ensure audio context is healthy after returning to page
+			ensureAudioReady();
 			// Resume p5 draw loop
 			loop();
 			// Resume playing videos only if they should be playing
@@ -403,6 +405,28 @@ function setup() {
 			document.removeEventListener('touchstart', enableAudio);
 		}, { once: true });
 	}
+
+	// Also ensure audio starts/resumes on first interaction (Android fix)
+	const ensureAudioOnInteract = () => {
+		try { if (typeof userStartAudio === 'function') userStartAudio(); } catch (e) {}
+		ensureAudioReady();
+		window.removeEventListener('touchstart', ensureAudioOnInteract);
+		window.removeEventListener('mousedown', ensureAudioOnInteract);
+		window.removeEventListener('keydown', ensureAudioOnInteract);
+	};
+	window.addEventListener('touchstart', ensureAudioOnInteract, { once: true, passive: true });
+	window.addEventListener('mousedown', ensureAudioOnInteract, { once: true, passive: true });
+	window.addEventListener('keydown', ensureAudioOnInteract, { once: true, passive: true });
+
+	// Handle BFCache and tab restore: fix audio glitched/low on Android after returning from links
+	window.addEventListener('pageshow', (evt) => {
+		// If restored from bfcache, contexts may be suspended or misconfigured
+		if (evt && evt.persisted) {
+			ensureAudioReady();
+		} else {
+			ensureAudioReady();
+		}
+	}, { passive: true });
 }
 
 
@@ -1535,6 +1559,8 @@ function playClickSound() {
 
 // Helper: Play sound with volume control
 function playSound(sound, volume = 0.2, rate = 1) {
+	// Make sure audio context is running and healthy before playback
+	ensureAudioReady();
 	if (sound && sound.isLoaded()) {
 		// Stop and reset to prevent overlap/crackling
 		if (sound.isPlaying()) {
@@ -1558,6 +1584,40 @@ function playSound(sound, volume = 0.2, rate = 1) {
 function stopSound(sound) {
 	if (sound && sound.isLoaded()) {
 		sound.stop();
+	}
+}
+
+// Audio helpers: resume and guard against Android sampleRate degradation
+function getP5AudioContext() {
+	try {
+		if (typeof getAudioContext === 'function') return getAudioContext();
+		if (typeof p5 !== 'undefined' && p5.soundOut && p5.soundOut.audiocontext) return p5.soundOut.audiocontext;
+	} catch (e) {}
+	return null;
+}
+
+function ensureAudioReady() {
+	const ctx = getP5AudioContext();
+	// Attempt to start audio if not yet started
+	try { if (typeof userStartAudio === 'function') userStartAudio(); } catch (e) {}
+	if (ctx) {
+		if (ctx.state !== 'running') {
+			ctx.resume && ctx.resume();
+		}
+		// Detect Android sample rate glitch (bitcrushed/low-quality sound)
+		const isAndroid = /Android/i.test(navigator.userAgent);
+		const sr = ctx.sampleRate || 0;
+		if (isAndroid && sr && sr < 32000) {
+			// One-time soft reload to recreate a clean AudioContext
+			const key = 'audioFixReloaded';
+			if (!sessionStorage.getItem(key)) {
+				console.warn('Audio sampleRate degraded (', sr, '). Reloading to fix Android audio bug.');
+				sessionStorage.setItem(key, '1');
+				setTimeout(() => { try { location.reload(); } catch (e) {} }, 50);
+			} else {
+				console.warn('Audio sampleRate still low after reload (', sr, '). Skipping further reloads.');
+			}
+		}
 	}
 }
 
