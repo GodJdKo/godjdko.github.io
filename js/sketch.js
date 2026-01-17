@@ -1764,28 +1764,30 @@ function handleBackButtonClick(x, y) {
 			let btnY = height - btnSize - 90;
 			
 			if (x >= btnX && x <= btnX + btnSize && y >= btnY && y <= btnY + btnSize) {
-				playSound(ticlicSound, 0.4);
-				
-				// iOS-friendly link opening with confirmation
-				let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-				if (isIOS) {
-					// Use confirm dialog to ensure user action, then navigate
-					if (confirm('Open link in new tab?\n\n' + currentLink)) {
-						// Try window.open first
-						let newWindow = window.open(currentLink, '_blank');
-						// Fallback: direct navigation if popup blocked
-						if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-							window.location.href = currentLink;
-						}
+				// Open link FIRST within the user gesture for reliability
+				const openExternalLink = (url) => {
+					try {
+						const a = document.createElement('a');
+						a.href = url;
+						a.target = '_blank';
+						a.rel = 'noopener noreferrer';
+						document.body.appendChild(a);
+						a.click();
+						document.body.removeChild(a);
+						return true;
+					} catch (e) {
+						return false;
 					}
-				} else {
-					// Standard browser behavior
-					let newWindow = window.open(currentLink, '_blank');
-					// Fallback if blocked
-					if (!newWindow) {
+				};
+				let opened = openExternalLink(currentLink);
+				if (!opened) {
+					let w = window.open(currentLink, '_blank');
+					if (!w) {
 						window.location.href = currentLink;
 					}
 				}
+				// Play feedback sound after attempting navigation
+				playSound(ticlicSound, 0.4);
 				return true;
 			}
 		}
