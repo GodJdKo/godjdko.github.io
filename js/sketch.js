@@ -1152,20 +1152,25 @@ function draw() {
 	if (playingVideo2) {
 		lastVideo2Use = millis();
 		if (video2Loaded && video2 && video2.elt && video2.elt.readyState >= 3) {
-			// Video is ready, clear the transition frame
-			if (video2TransitionFrame) {
+			// Calculate fresh dimensions for video2
+			let video2Dims = getDisplayDimensions(video2.width, video2.height);
+
+			// Check if video is frozen at the end
+			let isVideoFrozen = video2.time() >= video2.duration() - 0.1;
+
+			// Capture last frame before clearing transition frame (prevents black screen at end)
+			if (isVideoFrozen && !video2TransitionFrame) {
+				let captureGraphics = createGraphics(width, height);
+				captureGraphics.background(0);
+				captureGraphics.image(video2, video2Dims.offsetX, video2Dims.offsetY, video2Dims.displayWidth, video2Dims.displayHeight);
+				video2TransitionFrame = captureGraphics;
+			}
+
+			// Clear the transition frame only if not at end
+			if (video2TransitionFrame && !isVideoFrozen) {
 				video2TransitionFrame.remove();
 				video2TransitionFrame = null;
 			}
-			
-			// Calculate fresh dimensions for video2
-			let video2Dims = getDisplayDimensions(video2.width, video2.height);
-			
-			// Check if video is frozen at the end
-			let isVideoFrozen = video2.time() >= video2.duration() - 0.1;
-			
-			// Enable smooth rendering when frozen on iOS to preserve text legibility
-			let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 			if (isVideoFrozen && isIOS) {
 				const canvasEl = (mainCanvas && mainCanvas.elt) ? mainCanvas.elt : document.querySelector('canvas');
 				if (canvasEl) {
